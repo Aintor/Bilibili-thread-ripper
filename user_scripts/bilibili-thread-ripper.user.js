@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bilibili 线程撕裂者
 // @namespace    https://github.com/MrTangLuyao/Bilibili-thread-ripper
-// @version      2026.10.8.1
+// @version      2026.10.17.1
 // @description  保留哔哩哔哩原生播放器，通过多 CDN、多 Range 并发下载改善视频缓冲速度。
 // @icon         https://raw.githubusercontent.com/MrTangLuyao/Bilibili-thread-ripper/main/icons/icon-128.png
 // @author       MrTangLuyao
@@ -366,7 +366,8 @@ const chrome = (() => {
     "upos-sz-mirrorbd.bilivideo.com",
     "upos-sz-mirror14b.bilivideo.com",
     "upos-sz-estgoss.bilivideo.com",
-    "upos-sz-mirrorcos.bilivideo.com"
+    "upos-sz-mirrorcos.bilivideo.com",
+    "upos-sz-mirrorcoso1.bilivideo.com"
   ]);
 
   const OVERSEAS_HOSTS = Object.freeze([
@@ -384,6 +385,19 @@ const chrome = (() => {
   function isAkamaiUrl(value) {
     try { return new URL(value).hostname.toLowerCase().endsWith(".akamaized.net"); }
     catch (_error) { return false; }
+  }
+
+  // A P2P or edge-cache relay (an mcdn node, or the mountaintoys.cn caches beside them) wraps
+  // the file in its own path and signature. Its address works only on relays: every ordinary
+  // node refuses it.
+  function isRelayUrl(value) {
+    try {
+      const url = new URL(value);
+      return /(?:^|\.)mcdn\./i.test(url.hostname) || /^\/v1\/resource\//i.test(url.pathname)
+        || String(url.searchParams.get("os") || "").toLowerCase() === "mcdn";
+    } catch (_error) {
+      return false;
+    }
   }
 
   function safeMediaUrl(value) {
@@ -425,7 +439,10 @@ const chrome = (() => {
       .filter((value, index, all) => all.indexOf(value) === index);
     const custom = customServers(mode, customHosts);
     const hosts = custom.length ? custom : mode === "overseas" ? OVERSEAS_HOSTS : MAINLAND_HOSTS;
-    const donor = originals.find((url) => !isAkamaiUrl(url));
+    // A relay address moved to an ordinary node is refused there, so only ordinary addresses
+    // are moved to the other nodes.
+    const ordinary = originals.filter((url) => !isRelayUrl(url));
+    const donor = ordinary.find((url) => !isAkamaiUrl(url));
     // Some overseas accounts are given nothing but akamaized.net addresses. That used to leave
     // no node at all in mainland mode and a single one in overseas mode. The nodes accept
     // those signatures too, so only in that case the akamaized.net addresses are the donors.
@@ -434,7 +451,7 @@ const chrome = (() => {
     // keeps the first requests spread over several nodes.
     const synthetic = (donor
       ? hosts.map((host) => swapOrdinaryHost(donor, host))
-      : hosts.flatMap((host) => originals.map((url) => swapOrdinaryHost(url, host, true))))
+      : hosts.flatMap((host) => ordinary.map((url) => swapOrdinaryHost(url, host, true))))
       .map(safeMediaUrl)
       .filter(Boolean);
     const allowedOriginals = custom.length
@@ -442,7 +459,10 @@ const chrome = (() => {
       : mode === "overseas"
         ? originals.filter((url) => !MAINLAND_HOSTS.includes(hostOf(url)))
         : originals.filter((url) => MAINLAND_HOSTS.includes(hostOf(url)));
-    return [...allowedOriginals, ...synthetic].filter((value, index, all) => all.indexOf(value) === index);
+    // Bilibili sometimes hands a track out only through relays. No other node can serve it
+    // then, so the relays are used whatever the mode, rather than giving the video up.
+    const relays = ordinary.length ? [] : originals;
+    return [...allowedOriginals, ...synthetic, ...relays].filter((value, index, all) => all.indexOf(value) === index);
   }
 
   function hostOf(value) {
@@ -726,6 +746,7 @@ const chrome = (() => {
     createBanList,
     createResolver,
     isAkamaiUrl,
+    isRelayUrl,
     representationUrls,
     swapOrdinaryHost
   });
@@ -3364,7 +3385,7 @@ const chrome = (() => {
       urlDeadlineSeconds,
       video,
       getDebug: () => ({
-        version: "2026.10.8.1",
+        version: "2026.10.17.1",
         architecture: "bilibili-native-ui-progressive-mse-0.8-core",
         quality: qualityLabel(selectedVideo),
         qualityId: Number(selectedVideo?.id) || 0,
@@ -4177,7 +4198,48 @@ const chrome = (() => {
     + `<svg class="icon-dark" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M20.5 13.8A8.5 8.5 0 1 1 10.2 3.5a6.6 6.6 0 0 0 10.3 10.3z"></path></svg>`
     + `<svg class="icon-auto" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="4"></circle><path d="M10 6a4 4 0 0 1 0 8z" fill="currentColor" stroke="none"></path><path d="M10 1.7v1.8M10 16.5v1.8M1.7 10h1.8M16.5 10h1.8M4.1 4.1l1.3 1.3M15.9 4.1l-1.3 1.3M4.1 15.9l1.3-1.3"></path><path d="M14.6 22.8l4.1-9 4.1 9M16 19.6h5.4"></path></svg>`;
   const THEME_LABELS = { auto: "自动（跟随系统）", light: "浅色", dark: "深色" };
+  const CHEVRON_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg>`;
   const KNOWN_HOSTS = HOST_GROUPS.flatMap(([, hosts]) => hosts);
+
+  // The ripple on everything that can be pressed, the same one as on louie1.com: a circle that
+  // grows from where the press landed and fades out. A timer removes each circle after its run,
+  // not only animationend: an animation does not run while its element is hidden (a section
+  // folded away, the floating button taken off the page while the panel is open), so
+  // animationend would never come, and the leftover circle would play again as soon as the
+  // element showed up.
+  const RIPPLE_MS = 600;
+  const RIPPLE_CSS = `
+    .btr-ripple-host { overflow: hidden; }
+    .btr-ripple { position: absolute; display: block; border-radius: 50%; transform: scale(0); background: var(--ripple, rgba(255, 255, 255, .15)); pointer-events: none; animation: btr-ripple ${RIPPLE_MS}ms linear forwards; }
+    @keyframes btr-ripple { to { transform: scale(4); opacity: 0; } }
+    @media (prefers-reduced-motion: reduce) { .btr-ripple { display: none; } }
+  `;
+
+  function ripple(surface, event) {
+    if (!surface) return;
+    if (root.getComputedStyle(surface).position === "static") surface.style.position = "relative";
+    surface.classList.add("btr-ripple-host");
+    clearRipples(surface);
+    const box = surface.getBoundingClientRect();
+    const size = Math.max(surface.clientWidth, surface.clientHeight);
+    // Its own element rather than a span, which the panel's span rules (the switches, the
+    // choices) would restyle.
+    const circle = document.createElement("btr-ripple");
+    circle.className = "btr-ripple";
+    circle.style.width = circle.style.height = `${size}px`;
+    circle.style.left = `${event.clientX - box.left - size / 2}px`;
+    circle.style.top = `${event.clientY - box.top - size / 2}px`;
+    surface.append(circle);
+    const timer = setTimeout(() => circle.remove(), RIPPLE_MS + 50);
+    circle.addEventListener("animationend", () => {
+      clearTimeout(timer);
+      circle.remove();
+    }, { once: true });
+  }
+
+  function clearRipples(scope) {
+    for (const circle of scope?.querySelectorAll(".btr-ripple") || []) circle.remove();
+  }
 
   const PANEL_HTML = `
     <main>
@@ -4194,86 +4256,85 @@ const chrome = (() => {
         </label>
       </header>
 
-      <section class="mode-select" aria-label="CDN 模式">
-        <label><input type="radio" name="mode" value="mainland"><span>大陆</span></label>
-        <label><input type="radio" name="mode" value="overseas"><span>海外</span></label>
-        <label><input type="radio" name="mode" value="custom"><span>自定义</span></label>
-      </section>
-
-      <section id="custom-hosts" class="custom-hosts" aria-label="自定义服务器" hidden>
-        <div class="custom-head"><span>自定义服务器</span><b id="custom-count">0</b></div>
-        <p id="custom-empty" class="custom-note">还没选服务器，暂时按大陆 CDN 下载。</p>
-        <div id="known-hosts"></div>
-        <fieldset class="host-group">
-          <legend>手动添加</legend>
-          <div id="manual-hosts" class="manual-hosts"></div>
-          <form id="host-form" class="host-form">
-            <input id="host-input" type="text" placeholder="例如 upos-sz-mirrorali.bilivideo.com" spellcheck="false" autocomplete="off" aria-label="服务器地址">
-            <button type="submit">添加</button>
-          </form>
-          <p id="host-error" class="host-error" role="alert"></p>
-        </fieldset>
-        <p class="custom-note">只能填 B 站的视频服务器（bilivideo.com、akamaized.net 等），视频的下载地址不会发给别的网站。</p>
-      </section>
-
       <section class="takeover-select" aria-label="接管方式">
         <label><input type="radio" name="takeover" value="full"><span>全接管</span></label>
         <label><input type="radio" name="takeover" value="compat"><span>兼容模式</span></label>
       </section>
       <p class="takeover-note">Safari 用户建议使用兼容模式。<br>全接管：视频由插件自己来放，下载和缓冲都由插件安排，速度最快。<br>兼容模式：当遇到播放问题或设置不生效时，尝试使用兼容模式。</p>
 
-      <section class="controls">
-        <div class="control-title">
-          <label for="concurrency">线程加载数</label>
-          <output id="thread-value" for="concurrency">8</output>
-        </div>
-        <div class="auto-row">
-          <label for="auto-concurrency">自动线程数（推荐）<small>BTR将智能选择需要的线程数。</small></label>
-          <label class="switch"><input id="auto-concurrency" type="checkbox" aria-label="自动线程数"><span></span></label>
-        </div>
-        <div class="slider">
-          <div id="slider-fill" class="slider-fill" aria-hidden="true"></div>
-          <input id="concurrency" type="range" min="0" max="5" step="1" value="1" aria-label="线程加载数" aria-valuetext="8">
-        </div>
-        <div class="scale" aria-hidden="true">
-          <span>4</span><span>8</span><span>16</span><span>32</span><span>64</span><span>128</span>
-        </div>
-      </section>
+      <details id="advanced" class="advanced">
+        <summary>
+          <span class="advanced-title">高级设置${CHEVRON_ICON}</span>
+          <small>默认设置在绝大多数场景就是表现最优的。如果你遇到了问题，修改这里的一些设置可能有帮助。</small>
+        </summary>
+        <div class="advanced-body">
+          <section class="mode-select" aria-label="CDN 模式">
+            <label><input type="radio" name="mode" value="mainland"><span>大陆</span></label>
+            <label><input type="radio" name="mode" value="overseas"><span>海外</span></label>
+            <label><input type="radio" name="mode" value="custom"><span>自定义</span></label>
+          </section>
 
-      <section class="accel-controls" aria-label="加速范围">
-        <div class="accel-row">
-          <label for="episode-enabled">剧集加速<small>加速番剧、电影、纪录片等剧集，使用兼容模式。</small></label>
-          <label class="switch"><input id="episode-enabled" type="checkbox" aria-label="剧集加速"><span></span></label>
-        </div>
-        <div class="accel-row">
-          <label for="live-enabled">直播加速（实验性）</label>
-          <label class="switch"><input id="live-enabled" type="checkbox" aria-label="直播加速（实验性）"><span></span></label>
-        </div>
-      </section>
+          <section id="custom-hosts" class="custom-hosts" aria-label="自定义服务器" hidden>
+            <div class="custom-head"><span>自定义服务器</span><b id="custom-count">0</b></div>
+            <p id="custom-empty" class="custom-note">还没选服务器，暂时按大陆 CDN 下载。</p>
+            <div id="known-hosts"></div>
+            <fieldset class="host-group">
+              <legend>手动添加</legend>
+              <div id="manual-hosts" class="manual-hosts"></div>
+              <form id="host-form" class="host-form">
+                <input id="host-input" type="text" placeholder="例如 upos-sz-mirrorali.bilivideo.com" spellcheck="false" autocomplete="off" aria-label="服务器地址">
+                <button type="submit">添加</button>
+              </form>
+              <p id="host-error" class="host-error" role="alert"></p>
+            </fieldset>
+            <p class="custom-note">只能填 B 站的视频服务器（bilivideo.com、akamaized.net 等），视频的下载地址不会发给别的网站。</p>
+          </section>
 
-      <section class="notice-controls" aria-label="提示设置">
-        <div class="notice-row"><label for="error-notices">显示错误</label><label class="switch"><input id="error-notices" type="checkbox" aria-label="显示错误"><span></span></label></div>
-        <div class="notice-row"><label for="debug-notices">Debug 模式</label><label class="switch"><input id="debug-notices" type="checkbox" aria-label="Debug 模式"><span></span></label></div>
-        <div class="notice-row"><label for="floating-button">悬浮按钮</label><label class="switch"><input id="floating-button" type="checkbox" aria-label="悬浮按钮"><span></span></label></div>
-        <fieldset id="debug-filters" class="debug-filters" hidden>
-          <legend>显示哪些 Debug 消息</legend>
-          <div class="debug-filter-actions"><button id="debug-select-all" type="button">全选</button><button id="debug-select-none" type="button">全不选</button></div>
-          <div class="debug-filter-options">
-            <label><input type="checkbox" data-debug-category="takeover">接管与切换</label>
-            <label><input type="checkbox" data-debug-category="playback">播放与暂停</label>
-            <label><input type="checkbox" data-debug-category="download">下载线程</label>
-            <label><input type="checkbox" data-debug-category="buffer">缓冲与跳转</label>
-            <label><input type="checkbox" data-debug-category="settings">设置变化</label>
-            <label><input type="checkbox" data-debug-category="other">其他日志</label>
-          </div>
-          <div class="debug-copy">
-            <button id="debug-copy" type="button">复制诊断信息</button>
-            <span id="debug-copy-status" class="debug-copy-status" role="status"></span>
-          </div>
-          <p class="debug-copy-note">反馈问题时点一下，把复制下来的内容贴到 issue 里。里面没有 Cookie、账号信息和视频的下载地址。</p>
-          <textarea id="debug-copy-text" class="debug-copy-text" readonly hidden aria-label="诊断信息"></textarea>
-        </fieldset>
-      </section>
+          <section class="controls">
+            <div class="control-title">
+              <label for="concurrency">线程加载数</label>
+              <output id="thread-value" for="concurrency">8</output>
+            </div>
+            <label class="auto-row" for="auto-concurrency"><span class="row-text">自动线程数（推荐）<small>BTR将智能选择需要的线程数。</small></span><span class="switch"><input id="auto-concurrency" type="checkbox" aria-label="自动线程数"><span></span></span></label>
+            <div class="slider">
+              <div id="slider-fill" class="slider-fill" aria-hidden="true"></div>
+              <input id="concurrency" type="range" min="0" max="5" step="1" value="1" aria-label="线程加载数" aria-valuetext="8">
+            </div>
+            <div class="scale" aria-hidden="true">
+              <span>4</span><span>8</span><span>16</span><span>32</span><span>64</span><span>128</span>
+            </div>
+          </section>
+
+          <section class="accel-controls" aria-label="加速范围">
+            <label class="accel-row" for="episode-enabled"><span class="row-text">剧集加速<small>加速番剧、电影、纪录片等剧集，使用兼容模式。</small></span><span class="switch"><input id="episode-enabled" type="checkbox" aria-label="剧集加速"><span></span></span></label>
+            <label class="accel-row" for="live-enabled"><span class="row-text">直播加速（实验性）</span><span class="switch"><input id="live-enabled" type="checkbox" aria-label="直播加速（实验性）"><span></span></span></label>
+          </section>
+
+          <section class="notice-controls" aria-label="提示设置">
+            <label class="notice-row" for="error-notices"><span class="row-text">显示错误</span><span class="switch"><input id="error-notices" type="checkbox" aria-label="显示错误"><span></span></span></label>
+            <label class="notice-row" for="debug-notices"><span class="row-text">Debug 模式</span><span class="switch"><input id="debug-notices" type="checkbox" aria-label="Debug 模式"><span></span></span></label>
+            <label class="notice-row" for="floating-button"><span class="row-text">悬浮按钮</span><span class="switch"><input id="floating-button" type="checkbox" aria-label="悬浮按钮"><span></span></span></label>
+            <fieldset id="debug-filters" class="debug-filters" hidden>
+              <legend>显示哪些 Debug 消息</legend>
+              <div class="debug-filter-actions"><button id="debug-select-all" type="button">全选</button><button id="debug-select-none" type="button">全不选</button></div>
+              <div class="debug-filter-options">
+                <label><input type="checkbox" data-debug-category="takeover">接管与切换</label>
+                <label><input type="checkbox" data-debug-category="playback">播放与暂停</label>
+                <label><input type="checkbox" data-debug-category="download">下载线程</label>
+                <label><input type="checkbox" data-debug-category="buffer">缓冲与跳转</label>
+                <label><input type="checkbox" data-debug-category="settings">设置变化</label>
+                <label><input type="checkbox" data-debug-category="other">其他日志</label>
+              </div>
+              <div class="debug-copy">
+                <button id="debug-copy" type="button">复制诊断信息</button>
+                <span id="debug-copy-status" class="debug-copy-status" role="status"></span>
+              </div>
+              <p class="debug-copy-note">反馈问题时点一下，把复制下来的内容贴到 issue 里。里面没有 Cookie、账号信息和视频的下载地址。</p>
+              <textarea id="debug-copy-text" class="debug-copy-text" readonly hidden aria-label="诊断信息"></textarea>
+            </fieldset>
+          </section>
+        </div>
+      </details>
 
       <section class="current-threads" aria-live="polite">
         <span>目前总线程</span>
@@ -4312,7 +4373,7 @@ const chrome = (() => {
     .theme-toggle { margin-left: -6px; padding: 0; border: 0; background: transparent; cursor: pointer; }
     .theme-toggle svg { display: none; }
     .theme-toggle[data-value="auto"] .icon-auto, .theme-toggle[data-value="light"] .icon-light, .theme-toggle[data-value="dark"] .icon-dark { display: block; }
-    .switch { position: relative; width: 42px; height: 24px; }
+    .switch { position: relative; display: block; width: 42px; height: 24px; }
     .switch input { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
     .switch span { position: absolute; inset: 0; border-radius: 999px; background: var(--switch); cursor: pointer; transition: 160ms ease; }
     .switch span::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: 160ms ease; }
@@ -4351,10 +4412,15 @@ const chrome = (() => {
     .host-error:empty { display: none; }
     .host-form input:focus-visible, .host-form button:focus-visible, .manual-host button:focus-visible, .host-option input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
     .controls { padding: 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
-    .control-title { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+    .control-title { display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px; }
     .control-title label { color: var(--label); font-size: 13px; }
-    .auto-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
-    .auto-row > label:first-child, .accel-row > label:first-child { display: flex; flex-direction: column; gap: 2px; color: var(--label); font-size: 13px; }
+    /* A switch row is pressed as a whole: it reaches to near the edge of its block, and its
+       padding stands in for the space the rows used to keep between them. */
+    .auto-row, .accel-row, .notice-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 -10px; padding: 7px 10px; border-radius: 6px; color: var(--label); font-size: 13px; cursor: pointer; transition: background 160ms ease; }
+    .auto-row:hover, .accel-row:hover, .notice-row:hover { background: var(--hover); }
+    .auto-row { margin-bottom: 7px; }
+    .auto-row .switch, .accel-row .switch, .notice-row .switch { flex: none; }
+    .row-text { display: flex; flex-direction: column; gap: 2px; }
     .auto-row small, .accel-row small { color: var(--subtle); font-size: 11px; }
     .controls.auto .slider, .controls.auto .scale { opacity: 0.4; pointer-events: none; }
     output { min-width: 42px; padding: 4px 8px; border-radius: 5px; color: #fff; background: #fb7299; font-size: 13px; font-weight: 700; text-align: center; }
@@ -4368,14 +4434,8 @@ const chrome = (() => {
     .scale span { width: 24px; text-align: center; }
     .scale span:first-child { text-align: left; }
     .scale span:last-child { text-align: right; }
-    .accel-controls, .notice-controls { margin-top: 12px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
-    .accel-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-    .accel-row .switch { flex: none; }
-    .accel-row + .accel-row { margin-top: 14px; }
-    .notice-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--label); font-size: 13px; }
-    .notice-row .switch { flex: none; }
-    .notice-row + .notice-row { margin-top: 14px; }
-    .debug-filters { min-width: 0; margin: 16px 0 0; padding: 12px 0 0; border: 0; border-top: 1px solid var(--divider); }
+    .accel-controls, .notice-controls { margin-top: 12px; padding: 7px 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+    .debug-filters { min-width: 0; margin: 9px 0 7px; padding: 12px 0 0; border: 0; border-top: 1px solid var(--divider); }
     .debug-filters[hidden] { display: none; }
     .debug-filters legend { padding: 0 0 4px; color: var(--label); font-size: 12px; }
     .debug-filter-actions { display: flex; gap: 8px; margin-bottom: 12px; }
@@ -4399,6 +4459,20 @@ const chrome = (() => {
     .btr-close { position: sticky; bottom: 12px; display: block; width: calc(100% - 32px); margin: 0 16px 16px; padding: 8px; border: 1px solid var(--control-border); border-radius: 6px; background: var(--hover); color: var(--button-text); font: inherit; font-size: 13px; cursor: pointer; box-shadow: 0 -6px 12px var(--bg); }
     .btr-close:hover { border-color: #fb7299; }
     .btr-close:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+    .advanced > summary { display: block; padding: 14px 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); list-style: none; cursor: pointer; transition: background 160ms ease; }
+    .advanced > summary::-webkit-details-marker { display: none; }
+    .advanced > summary:hover { background: var(--hover); }
+    .advanced > summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+    .advanced-title { display: flex; align-items: center; justify-content: space-between; color: var(--label); font-size: 13px; }
+    .advanced-title svg { flex: none; width: 16px; height: 16px; color: var(--muted); transition: transform 160ms ease; }
+    .advanced[open] .advanced-title svg { transform: rotate(180deg); }
+    .advanced > summary small { display: block; margin-top: 6px; color: var(--subtle); font-size: 11px; line-height: 1.6; }
+    .advanced-body { margin-top: 12px; }
+    .host-option, .debug-filter-options label { border-radius: 4px; }
+    .btr-popup { --ripple: rgba(251, 114, 153, .35); }
+    .btr-popup[data-theme="light"] { --ripple: rgba(251, 114, 153, .3); }
+    .mode-select input:checked + span, .takeover-select input:checked + span, .switch input:checked + span, .host-form button, .debug-copy button:hover { --ripple: rgba(255, 255, 255, .35); }
+    ${RIPPLE_CSS}
   `;
 
   const LAUNCHER_CSS = `
@@ -4407,6 +4481,8 @@ const chrome = (() => {
     .btr-launcher:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
     .btr-launcher.dragging { cursor: grabbing; opacity: 1; transform: scale(1.1); transition: opacity 160ms ease, transform 160ms ease; }
     @media (max-width: 700px) { .btr-launcher { width: 40px; height: 40px; font-size: 12px; } }
+    .btr-launcher { --ripple: rgba(255, 255, 255, .35); }
+    ${RIPPLE_CSS}
   `;
 
   let current = null;
@@ -4423,7 +4499,7 @@ const chrome = (() => {
     const parse = (text) => { try { return JSON.parse(text); } catch (_error) { return text; } };
     const sections = [
       ["环境", {
-        BTR: "2026.10.8.1",
+        BTR: "2026.10.17.1",
         脚本管理器: document.documentElement?.getAttribute("data-btr-userscript-manager") || "未知",
         浏览器: navigator.userAgent,
         页面: `${location.origin}${location.pathname}`,
@@ -4449,8 +4525,10 @@ const chrome = (() => {
   }
   let latestStats = null;
   const post = (type, payload) => root.postMessage({ channel: CHANNEL, type, payload }, "*");
+  // 高级设置 starts folded. Unfolded once, it stays so for the rest of this page.
+  let advancedOpen = false;
 
-  function open() {
+  function open(options = {}) {
     if (current) return;
     // A modal <dialog> sits in the browser's top layer and is the only interactive part of
     // the page while it is open. A plain fixed layer can end up under the page's own
@@ -4484,6 +4562,18 @@ const chrome = (() => {
     shadow.append(style, backdrop, panel);
 
     const $ = (id) => shadow.getElementById(id);
+    const advanced = $("advanced");
+    advanced.open = advancedOpen || options.advanced === true;
+    advanced.addEventListener("toggle", () => { advancedOpen = advanced.open; });
+    // A press ripples over a whole switch row, the colored part of any other switch or of a
+    // choice, otherwise over the control itself.
+    panel.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0 || !(event.target instanceof Element)) return;
+      const target = event.target.closest(".auto-row, .accel-row, .notice-row")
+        || event.target.closest("button, a[href], summary, .switch, .mode-select label, .takeover-select label, .host-option, .debug-filter-options label");
+      if (!target || target.matches(":disabled")) return;
+      ripple(target.matches(".switch, .mode-select label, .takeover-select label") ? target.querySelector("span") : target, event);
+    });
     const enabled = $("enabled");
     const concurrency = $("concurrency");
     const autoConcurrency = $("auto-concurrency");
@@ -4702,6 +4792,7 @@ const chrome = (() => {
       systemTheme.removeEventListener("change", applyTheme);
       launcher?.apply();
       document.removeEventListener("keydown", onKey, true);
+      clearRipples(panel);
       dialog.remove();
     };
     // Changes made elsewhere (the gear menu, another tab) arrive as new settings.
@@ -4860,7 +4951,10 @@ const chrome = (() => {
         }
         toggle();
       });
-      button.addEventListener("pointerdown", startDrag);
+      button.addEventListener("pointerdown", (event) => {
+        if (event.button === 0) ripple(button, event);
+        startDrag(event);
+      });
       button.addEventListener("pointermove", moveDrag);
       for (const type of ["pointerup", "pointercancel"]) {
         button.addEventListener(type, (event) => {
@@ -4918,8 +5012,8 @@ const chrome = (() => {
         if (noticeHistory.length > 100) noticeHistory.shift();
       }
     } else if (event.data.type === "open-settings" && root.top === root) {
-      // "自定义" in the gear menu.
-      open();
+      // "自定义" in the gear menu: the custom servers are under 高级设置.
+      open({ advanced: true });
     }
   });
   // The userscript manager's menu entry.
@@ -5007,7 +5101,7 @@ const chrome = (() => {
   });
 
   const stats = {
-    version: "2026.10.8.1",
+    version: "2026.10.17.1",
     architecture: "bilibili-native-ui-progressive-mse-0.8-core",
     mode: settings.mode,
     playerState: "waiting",
@@ -6530,7 +6624,7 @@ const chrome = (() => {
           state: stats.playerState, lastError: stats.lastError, player: rest, nodes: stats.cdnHosts.map((item) => ({ ...item })), bannedNodes: cdnBans?.hosts?.() || [], page: pageEvents.slice(), timeline
         }, null, 1);
       },
-      version: "2026.10.8.1"
+      version: "2026.10.17.1"
     })
   });
   publish();
@@ -6784,7 +6878,7 @@ const chrome = (() => {
 
   // ---- stats for the settings panel ----
   const stats = {
-    version: "2026.10.8.1",
+    version: "2026.10.17.1",
     architecture: "live-segment-ripper",
     mode: "live",
     playerState: "waiting",
@@ -7248,7 +7342,7 @@ const chrome = (() => {
         hosts: context.pool.status()
       },
       getStats: () => ({ ...stats }),
-      version: "2026.10.8.1"
+      version: "2026.10.17.1"
     })
   });
   publish();
@@ -7565,7 +7659,7 @@ const chrome = (() => {
   "use strict";
 
   const CHANNEL = "__BILI_RANGE_ACCELERATOR_V1__";
-  const VERSION = "2026.10.8.1";
+  const VERSION = "2026.10.17.1";
   const notices = globalThis.__BTR_NOTIFICATION_VIEW__;
   const ERROR_NOTICE_ID = "__bilibili_thread_ripper_error_notice__";
   const ERROR_NOTICE_STYLE_ID = "__bilibili_thread_ripper_error_notice_style__";
