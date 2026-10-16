@@ -69,6 +69,10 @@ async function chooseTheme(page, panel, value) {
   }
   assert.equal(await themeOf(panel), value);
 }
+// 高级设置 is folded until clicked open; the panel keeps it open for the rest of the page.
+async function unfold(panel) {
+  if (!(await panel.locator("#advanced").evaluate(node => node.open))) await panel.locator("#advanced > summary").click();
+}
 
 (async () => {
   checkPublished();
@@ -120,6 +124,21 @@ async function chooseTheme(page, panel, value) {
     await openSettings(page);
     const panel = page.locator(`${settingsHost} .btr-popup`);
     await panel.waitFor();
+    // 高级设置 starts folded with its note showing. A press ripples, and a ripple cut short by
+    // folding its part away does not play again when the part opens.
+    const advanced = panel.locator("#advanced");
+    assert.equal(await advanced.evaluate(node => node.open), false);
+    assert.match(await advanced.locator("summary").textContent(), /高级设置[\s\S]*默认设置在绝大多数场景就是表现最优的/);
+    assert.equal(await panel.locator(".mode-select").isVisible(), false);
+    await advanced.locator("summary").click();
+    await panel.locator(".mode-select").waitFor();
+    await panel.locator('.mode-select input[value="mainland"] + span').click();
+    assert.equal(await panel.locator(".mode-select .btr-ripple").count(), 1);
+    await advanced.locator("summary").click();
+    await page.waitForTimeout(800);
+    await advanced.locator("summary").click();
+    await panel.locator(".mode-select").waitFor();
+    assert.equal(await panel.locator(".mode-select .btr-ripple").count(), 0, "a hidden ripple played again");
     const palette = () => panel.evaluate(node => ({ theme: node.dataset.theme, background: getComputedStyle(node).backgroundColor, scheme: getComputedStyle(node).colorScheme }));
     assert.deepEqual(await panel.evaluate(node => [getComputedStyle(node).userSelect, getComputedStyle(node.querySelector("#host-form input")).userSelect]), ["none", "text"]);
     assert.equal(await themeOf(panel), "auto");
@@ -286,6 +305,7 @@ async function chooseTheme(page, panel, value) {
     assert.equal(await themeOf(secondPanel), "light");
     await chooseTheme(second, secondPanel, "dark");
     await page.waitForFunction(() => __biliThreadRipperDebug.getSettings().theme === "dark");
+    await unfold(secondPanel);
     await secondPanel.locator('input[name="mode"][value="overseas"]').check({ force: true });
     await page.waitForFunction(() => __biliThreadRipperDebug.getSettings().mode === "overseas");
     await page.goto(origin);
@@ -383,6 +403,7 @@ async function chooseTheme(page, panel, value) {
     await openSettings(space);
     const spacePanel = space.locator(`${settingsHost} .btr-popup`);
     await spacePanel.waitFor();
+    await unfold(spacePanel);
     await openSettings(video);
     await video.emulateMedia({ colorScheme: "dark" });
     const videoPanel = video.locator(`${settingsHost} .btr-popup`);

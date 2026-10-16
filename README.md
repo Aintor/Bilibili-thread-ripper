@@ -21,6 +21,9 @@
 > [!NOTE]
 > 本项目是非官方、实验性质的开源项目。它不会绕过会员、登录、区域、清晰度、审核状态、数字版权保护或媒体签名限制。
 
+> [!IMPORTANT]
+> 本脚本是针对海外用户优化的，对于中国大陆用户优化有限，如果你在中国大陆，你应该优先检查自身的网络情况。
+
 > [!TIP]
 > 如果 BTR 帮到了你，欢迎分享给同样在海外看 B 站的朋友，也可以给项目点个 Star ⭐，让更多人看到它。
 
@@ -39,7 +42,7 @@
 - **直播加速**：实验性，默认关闭
 - **不上传任何数据**：没有遥测
 
-### 速度对比：原生、[bilibili-accelerator](https://github.com/realzza/bilibili-accelerator) 以及 bilibili CDN 加速插件
+### 速度对比：原生、[bilibili-accelerator](https://github.com/realzza/bilibili-accelerator) 以及 [bilibili CDN 加速插件](https://chromewebstore.google.com/detail/bilibilii-cdn%E5%8A%A0%E9%80%9F/kpjldkeakpnfeplfoofeklickdmakimn)
 
 <div align="center">
 <img src="pics/speed-comparison.png" alt="对比原生以及其他优化插件的下载速度" width="760">
@@ -95,7 +98,7 @@
   </tr>
 </table>
 
-**自定义 CDN**：除了大陆和海外，还可以选“自定义”：勾选已知的服务器，或者手动添加 B 站的视频服务器地址（bilivideo.com、akamaized.net 等），插件只用你选的这些。一个都没选时按大陆 CDN 下载。
+**自定义 CDN**：在设置面板的“高级设置”里，除了大陆和海外，还可以选“自定义”：勾选已知的服务器，或者手动添加 B 站的视频服务器地址（bilivideo.com、akamaized.net 等），插件只用你选的这些。一个都没选时按大陆 CDN 下载。
 
 **面板主题**：设置面板标题右边、GitHub 图标旁的按钮切换主题：☀️ 浅色、🌙 深色，右下角带个小 A 的是自动（跟随系统配色，默认）。每点一下换一种：自动 → 跟系统相反的颜色 → 跟系统相同的颜色 → 自动。选择会保存，并通过同一个脚本管理器在 B 站各个页面和标签页之间同步。
 
