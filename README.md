@@ -63,11 +63,14 @@
 - **原生实现**：基于原生 HTML/CSS/SVG 构建，不引入第三方前端框架。
 
 <div align="center">
-  <img src="pics/popup-dark-main.png" width="220" alt="暗黑主界面">
+  <img src="pics/popup-dark-main.png" width="180" alt="暗黑主界面">
+  &nbsp;&nbsp;
+  <img src="pics/popup-dark-sub.png" width="180" alt="暗黑高级设置">
   &nbsp;&nbsp;&nbsp;&nbsp;
-  <img src="pics/popup-dark-sub.png" width="220" alt="暗黑二级设置">
-  &nbsp;&nbsp;&nbsp;&nbsp;
-  <img src="pics/popup-light-main.png" width="220" alt="浅色主界面">
+  <img src="pics/popup-light-main.png" width="180" alt="浅色主界面">
+  &nbsp;&nbsp;
+  <img src="pics/popup-light-sub.png" width="180" alt="浅色高级设置">
+  <br><sub>暗黑模式与浅色模式界面对比</sub>
 </div>
 
 ### 下载与安装步骤 (macOS Safari)
