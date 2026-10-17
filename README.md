@@ -12,22 +12,22 @@
 
 [![安装视频教程](https://img.shields.io/badge/%E5%AE%89%E8%A3%85%E8%A7%86%E9%A2%91%E6%95%99%E7%A8%8B-00A1D6?style=for-the-badge&logo=bilibili&logoColor=white)](https://www.bilibili.com/video/BV1Teec6BE3s?p=2) [![Safari 原生版下载](https://img.shields.io/badge/Safari%20原生版-下载%20DMG%20%2F%20ZIP-000000?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/Aintor/Bilibili-thread-ripper/releases/latest) [![点击安装线程撕裂者](https://img.shields.io/badge/%E7%82%B9%E5%87%BB%E5%AE%89%E8%A3%85-%E6%B2%B9%E7%8C%B4%E8%84%9A%E6%9C%AC-fb7299?style=for-the-badge&logo=bilibili&logoColor=white)](https://raw.githubusercontent.com/MrTangLuyao/Bilibili-thread-ripper/main/user_scripts/bilibili-thread-ripper.user.js)
 
-[**Safari 扩展**](#-macos-safari-原生扩展体验) · [**油猴安装**](#-安装) · [建议设置](#建议设置) · [原理](#原理解释) · [常见问题](#常见问题) · [反馈问题](#反馈问题) · [更新日志](CHANGELOG.md)
+[**Safari 扩展 (Fork 新增)**](#macos-safari-扩展-fork-新增) · [**油猴安装**](#安装) · [建议设置](#建议设置) · [原理](#原理解释) · [常见问题](#常见问题) · [反馈问题](#反馈问题) · [更新日志](CHANGELOG.md)
 
 <br>
 
 <table>
   <tr>
     <td align="center" width="50%">
-      <b>🍎 macOS Safari 原生暗黑磨砂仪表盘</b><br><br>
-      <img src="pics/safari-popover-live.png" width="360" alt="Safari 原生暗黑磨砂仪表盘">
-      <br><sub>真实 Safari 磨砂玻璃穿透效果（Dark Vibrancy）</sub>
+      <b>macOS Safari 暗黑模式弹出界面</b><br><br>
+      <img src="pics/safari-popover-live.png" width="360" alt="Safari 暗黑模式弹出界面">
+      <br><sub>Safari 弹出窗口效果（暗黑模式）</sub>
     </td>
     <td align="center" width="50%">
-      <b>🎛️ 拟物刻度表盘 & 二级高级设置</b><br><br>
-      <img src="pics/popup-dark-main.png" width="180" alt="暗黑主仪表盘">
-      <img src="pics/popup-dark-sub.png" width="180" alt="二级高级设置">
-      <br><sub>Precision Dial 拟物刻度与 iOS 推移交互</sub>
+      <b>表盘与高级设置界面</b><br><br>
+      <img src="pics/popup-dark-main.png" width="180" alt="主仪表盘">
+      <img src="pics/popup-dark-sub.png" width="180" alt="高级设置">
+      <br><sub>主界面与二级设置界面</sub>
     </td>
   </tr>
 </table>
@@ -41,22 +41,26 @@
 > 本脚本是针对海外用户优化的，对于中国大陆用户优化有限，如果你在中国大陆，你应该优先检查自身的网络情况。
 
 > [!TIP]
-> 如果 BTR 帮到了你，欢迎分享给同样在海外看 B 站的朋友，也可以给项目点个 Star ⭐，让更多人看到它。
+> 如果 BTR 帮到了你，欢迎分享给同样在海外看 B 站的朋友，也可以给项目点个 Star，让更多人看到它。
 
 > [!TIP]
 > 想在手机或平板上用？可以试试把 BTR 移植进 PiliPlus 客户端的第三方项目：[nishuodedui1145-del/PiliPlus](https://github.com/nishuodedui1145-del/PiliPlus)、[lemonteaau/PiliPlus](https://github.com/lemonteaau/PiliPlus)。它们由社区独立维护，效果不做保证。
 
-## 🍎 macOS Safari 原生扩展体验
+## macOS Safari 扩展 (Fork 新增)
+
+> [!NOTE]
+> **本节内容为 Fork 仓库（[@Aintor](https://github.com/Aintor/Bilibili-thread-ripper)）新增：**
+> 原版仓库主要面向油猴脚本与通用 Web 扩展。本分支为 macOS Safari 提供了原生 App 封装与拟物风格扩展界面，支持暗黑模式与系统毛玻璃外观，可通过下载安装包直接在 Safari 中启用。
 
 [![下载 macOS 安装包](https://img.shields.io/badge/下载%20macOS%20安装包-DMG%20%2F%20ZIP-000000?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/Aintor/Bilibili-thread-ripper/releases/latest)
 
-为 Mac Safari 打造的纯正 Apple 工业级美学与原生 WebExtension 体验：
+### 界面与特性
 
-- 🎛️ **Precision Dial 拟物刻度流光表盘**：专业音频 DAC / Apple Watch Ultra 灵感，44px 斜体大字读数 + 动态呼吸霓虹发光弧；
-- ⚡ **6点钟物理动力按键**：下沉式微凸触控底座，一键点火启动多线程并发加速；
-- 🧊 **macOS 真实暗黑石墨毛玻璃（Dark Vibrancy）**：纯透明穿透底板，自动无缝融入 macOS 深色磨砂玻璃系统外观；
-- 📱 **纯正 Apple Inset-Grouped 交互**：平滑推移二级高级设置、50/50 原生线路分段选择器（大陆 / 海外）；
-- 🍃 **零框架、零负担**：纯原生 HTML/CSS/SVG，零前端框架打包体积，瞬间毫秒级弹出。
+- **拟物表盘界面**：采用数码仪表与刻度盘风格，展示当前并发线程数与运行状态。
+- **启停控制按键**：位于表盘底部，用于切换并发加速开关。
+- **深色毛玻璃外观**：背景采用透明处理，适配 Safari 弹出窗口的毛玻璃质感，并兼顾台前调度侧边栏的对比度表现。
+- **分组设置界面**：提供二级高级设置，支持线路模式（大陆 / 海外）及相关参数调节。
+- **原生实现**：基于原生 HTML/CSS/SVG 构建，不引入第三方前端框架。
 
 <div align="center">
   <img src="pics/popup-dark-main.png" width="220" alt="暗黑主界面">
@@ -66,15 +70,15 @@
   <img src="pics/popup-light-main.png" width="220" alt="浅色主界面">
 </div>
 
-### 📥 下载与一键安装 (macOS Safari)
+### 下载与安装步骤 (macOS Safari)
 
-1. 从 [**Releases 发布页**](https://github.com/Aintor/Bilibili-thread-ripper/releases/latest) 下载 `Bilibili-Speed-v1.0.0.dmg` 或 `Bilibili-Speed-v1.0.0.zip`；
-2. 打开 DMG，将 **「哔哩速度」** 拖入 **Applications（应用程序）** 文件夹；
-3. 双击运行一次「哔哩速度」App；
+1. 前往 [Releases 页面](https://github.com/Aintor/Bilibili-thread-ripper/releases/latest) 下载 `Bilibili-Speed-v1.0.0.dmg` 或 `Bilibili-Speed-v1.0.0.zip`；
+2. 打开 DMG，将 **哔哩速度** 拖入 **Applications（应用程序）** 文件夹；
+3. 打开运行一次「哔哩速度」应用程序；
 4. 打开 **Safari 浏览器**：
-   - 顶部菜单栏 **设置** -> **高级** -> 勾选底部的 **「为开发者显示功能」**；
-   - 顶部菜单栏 **开发** -> 勾选 **「允许未签名的扩展」**；
-   - 顶部菜单栏 **设置** -> **扩展** -> 勾选启用 **「哔哩速度」** 即可畅享极速观影体验！
+   - 菜单栏 **设置** -> **高级** -> 勾选 **「为开发者显示功能」**；
+   - 菜单栏 **开发** -> 勾选 **「允许未签名的扩展」**；
+   - 菜单栏 **设置** -> **扩展** -> 勾选启用 **「哔哩速度」**。
 
 ## 为什么需要它
 
@@ -95,7 +99,7 @@
 </div>
 <sub>对比原生以及其他优化插件，墨尔本，运营商 Superloop 实测。测试视频是一个仅自己可见、几乎无播放的 4K60 视频（BV1Aou3zjEh1），3 次测试取平均，线程撕裂者版本 2026.10.8.1，仅供参考。</sub>
 
-## 📦 安装
+## 安装
 
 [![安装视频教程](https://img.shields.io/badge/%E5%AE%89%E8%A3%85%E8%A7%86%E9%A2%91%E6%95%99%E7%A8%8B-00A1D6?style=for-the-badge&logo=bilibili&logoColor=white)](https://www.bilibili.com/video/BV1Teec6BE3s?p=2) [![点击安装线程撕裂者](https://img.shields.io/badge/%E7%82%B9%E5%87%BB%E5%AE%89%E8%A3%85-%E7%BA%BF%E7%A8%8B%E6%92%95%E8%A3%82%E8%80%85-fb7299?style=for-the-badge&logo=bilibili&logoColor=white)](https://raw.githubusercontent.com/MrTangLuyao/Bilibili-thread-ripper/main/user_scripts/bilibili-thread-ripper.user.js)
 
@@ -112,9 +116,9 @@
 
 | 浏览器 | 支持 | 建议 | 说明 |
 | --- | :---: | --- | --- |
-| Chrome、Edge 等 Chromium 内核 | ✅ | [暴力猴插件](https://violentmonkey.github.io/) | 一定要打开“允许运行用户脚本” |
-| Firefox | ✅ | [暴力猴插件](https://violentmonkey.github.io/) | |
-| Safari | ✅ | [原生扩展（推荐）](#-macos-safari-原生扩展体验) / [Tampermonkey](https://www.tampermonkey.net/) | 支持独立原生扩展应用，体验原生拟物暗黑仪表盘 |
+| Chrome、Edge 等 Chromium 内核 | 支持 | [暴力猴插件](https://violentmonkey.github.io/) | 需要打开“允许运行用户脚本” |
+| Firefox | 支持 | [暴力猴插件](https://violentmonkey.github.io/) | |
+| Safari | 支持 | [原生扩展（推荐）](#macos-safari-扩展-fork-新增) / [Tampermonkey](https://www.tampermonkey.net/) | 提供独立 macOS 应用打包与暗黑仪表盘界面 |
 
 > [!WARNING]
 > 如果你是早期通过视频了解到这个插件的：针对 Chrome 的独立插件版已经停止更新。请先在扩展管理里移除插件版，再按上面的步骤安装油猴脚本版，不要同时开启两个版本。
@@ -125,7 +129,7 @@
 
 | 情况 | CDN 模式 | 线程数 |
 | --- | --- | ---: |
-| ⭐ 推荐 | 大陆 CDN | 自动 |
+| 推荐 | 大陆 CDN | 自动 |
 | 手动调优 | 大陆 CDN | 8 到 32 |
 | 设备性能弱 | 大陆 CDN | 4 到 8 |
 | 本地连大陆网络太差 | 海外 CDN | 自动 |
