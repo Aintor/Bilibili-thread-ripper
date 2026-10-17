@@ -96,9 +96,9 @@
       // 剧集加速: episode pages (/bangumi/play/ep… and ss…: anime, films, documentaries, …),
       // sped up in the compatibility mode only.
       episodeEnabled: source.episodeEnabled !== false,
-      // "full" replaces Bilibili's playback core; "compat" leaves it in charge and only
-      // downloads its media requests.
-      takeover: source.takeover === "compat" ? "compat" : "full",
+      // Only compatibility mode is used ("compat"): Bilibili's playback core stays in charge
+      // and BTR accelerates media requests underneath.
+      takeover: "compat",
       mode: ["overseas", "custom"].includes(source.mode) ? source.mode : "mainland",
       customHosts: (Array.isArray(source.customHosts) ? source.customHosts : [])
         .map(normalizeCdnHost)
