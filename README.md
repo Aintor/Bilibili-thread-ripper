@@ -10,7 +10,7 @@
 
 [![版本](https://img.shields.io/github/v/tag/MrTangLuyao/Bilibili-thread-ripper?sort=date&label=%E7%89%88%E6%9C%AC&style=flat-square&color=fb7299)](CHANGELOG.md) [![测试](https://img.shields.io/github/actions/workflow/status/MrTangLuyao/Bilibili-thread-ripper/tests.yml?branch=main&label=%E6%B5%8B%E8%AF%95&style=flat-square)](https://github.com/MrTangLuyao/Bilibili-thread-ripper/actions/workflows/tests.yml) [![Stars](https://img.shields.io/github/stars/MrTangLuyao/Bilibili-thread-ripper?style=flat-square&color=f5b301)](https://github.com/MrTangLuyao/Bilibili-thread-ripper/stargazers) [![许可证](https://img.shields.io/github/license/MrTangLuyao/Bilibili-thread-ripper?label=%E8%AE%B8%E5%8F%AF%E8%AF%81&style=flat-square&color=3b82f6)](LICENSE)
 
-[![安装视频教程](https://img.shields.io/badge/%E5%AE%89%E8%A3%85%E8%A7%86%E9%A2%91%E6%95%99%E7%A8%8B-00A1D6?style=for-the-badge&logo=bilibili&logoColor=white)](https://www.bilibili.com/video/BV1Teec6BE3s?p=2) [![点击安装线程撕裂者](https://img.shields.io/badge/%E7%82%B9%E5%87%BB%E5%AE%89%E8%A3%85-%E7%BA%BF%E7%A8%8B%E6%92%95%E8%A3%82%E8%80%85-fb7299?style=for-the-badge&logo=bilibili&logoColor=white)](https://raw.githubusercontent.com/MrTangLuyao/Bilibili-thread-ripper/main/user_scripts/bilibili-thread-ripper.user.js)
+[![安装视频教程](https://img.shields.io/badge/%E5%AE%89%E8%A3%85%E8%A7%86%E9%A2%91%E6%95%99%E7%A8%8B-00A1D6?style=for-the-badge&logo=bilibili&logoColor=white)](https://www.bilibili.com/video/BV1Teec6BE3s?p=2) [![Safari 原生版下载](https://img.shields.io/badge/Safari%20原生版-下载%20DMG%20%2F%20ZIP-000000?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/Aintor/Bilibili-thread-ripper/releases/latest) [![点击安装线程撕裂者](https://img.shields.io/badge/%E7%82%B9%E5%87%BB%E5%AE%89%E8%A3%85-%E6%B2%B9%E7%8C%B4%E8%84%9A%E6%9C%AC-fb7299?style=for-the-badge&logo=bilibili&logoColor=white)](https://raw.githubusercontent.com/MrTangLuyao/Bilibili-thread-ripper/main/user_scripts/bilibili-thread-ripper.user.js)
 
 [**Safari 扩展**](#-macos-safari-原生扩展体验) · [**油猴安装**](#-安装) · [建议设置](#建议设置) · [原理](#原理解释) · [常见问题](#常见问题) · [反馈问题](#反馈问题) · [更新日志](CHANGELOG.md)
 
@@ -48,6 +48,8 @@
 
 ## 🍎 macOS Safari 原生扩展体验
 
+[![下载 macOS 安装包](https://img.shields.io/badge/下载%20macOS%20安装包-DMG%20%2F%20ZIP-000000?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/Aintor/Bilibili-thread-ripper/releases/latest)
+
 为 Mac Safari 打造的纯正 Apple 工业级美学与原生 WebExtension 体验：
 
 - 🎛️ **Precision Dial 拟物刻度流光表盘**：专业音频 DAC / Apple Watch Ultra 灵感，44px 斜体大字读数 + 动态呼吸霓虹发光弧；
@@ -63,6 +65,16 @@
   &nbsp;&nbsp;&nbsp;&nbsp;
   <img src="pics/popup-light-main.png" width="220" alt="浅色主界面">
 </div>
+
+### 📥 下载与一键安装 (macOS Safari)
+
+1. 从 [**Releases 发布页**](https://github.com/Aintor/Bilibili-thread-ripper/releases/latest) 下载 `Bilibili-Speed-v1.0.0.dmg` 或 `Bilibili-Speed-v1.0.0.zip`；
+2. 打开 DMG，将 **「哔哩速度」** 拖入 **Applications（应用程序）** 文件夹；
+3. 双击运行一次「哔哩速度」App；
+4. 打开 **Safari 浏览器**：
+   - 顶部菜单栏 **设置** -> **高级** -> 勾选底部的 **「为开发者显示功能」**；
+   - 顶部菜单栏 **开发** -> 勾选 **「允许未签名的扩展」**；
+   - 顶部菜单栏 **设置** -> **扩展** -> 勾选启用 **「哔哩速度」** 即可畅享极速观影体验！
 
 ## 为什么需要它
 
