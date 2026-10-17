@@ -74,7 +74,8 @@
 
 1. 前往 [Releases 页面](https://github.com/Aintor/Bilibili-thread-ripper/releases/latest) 下载 `Bilibili-Speed-v1.0.0.dmg` 或 `Bilibili-Speed-v1.0.0.zip`；
 2. 打开 DMG，将 **哔哩速度** 拖入 **Applications（应用程序）** 文件夹；
-3. 打开运行一次「哔哩速度」应用程序；
+3. 运行一次「哔哩速度」应用程序：
+   - 由于未配置付费 Apple 开发者证书，首次打开若提示“无法验证开发者”，请前往 macOS **「系统设置」** -> **「隐私与安全性」**，在安全性选项中点击 **「仍要打开」**（或右键点击 App 选择「打开」）；
 4. 打开 **Safari 浏览器** 进行配置：
    - 菜单栏 **设置** -> **高级** -> 勾选 **「为开发者显示功能」**；
    - 菜单栏 **开发** -> 勾选 **「允许未签名的扩展」**；
