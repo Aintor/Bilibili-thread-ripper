@@ -75,7 +75,7 @@
 
 ### 下载与安装步骤 (macOS Safari)
 
-1. 前往 [Releases 页面](https://github.com/Aintor/Bilibili-thread-ripper/releases/latest) 下载 `Bilibili-Speed-v1.0.0.dmg` 或 `Bilibili-Speed-v1.0.0.zip`；
+1. 前往 [Releases 页面](https://github.com/Aintor/Bilibili-thread-ripper/releases/latest) 下载最新版本的 `Bilibili-Speed-*.dmg` 或 `Bilibili-Speed-*.zip`；
 2. 打开 DMG，将 **哔哩速度** 拖入 **Applications（应用程序）** 文件夹；
 3. 运行一次「哔哩速度」应用程序：
    - 由于未配置付费 Apple 开发者证书，首次打开若提示“无法验证开发者”，请前往 macOS **「系统设置」** -> **「隐私与安全性」**，在安全性选项中点击 **「仍要打开」**（或右键点击 App 选择「打开」）；

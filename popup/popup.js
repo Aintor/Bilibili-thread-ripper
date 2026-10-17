@@ -114,8 +114,8 @@ for (let i = 0; i <= TICK_COUNT; i++) {
 }
 
 // 3. 动态弹簧阻尼渲染 (Fluid Physics Interpolation)
-let currentDisplayValue = settings.enabled ? (settings.concurrency || 16) : 0;
-let targetValue = currentDisplayValue;
+let currentDisplayValue = 0;
+let targetValue = 0;
 let animFrameId = null;
 
 function renderDial(value) {
@@ -159,14 +159,33 @@ function setTargetConcurrency(val) {
   }
 }
 
-// 模拟真实网速下的有机轻微波动 (Heartbeat)
-setInterval(() => {
-  if (!settings.enabled) return;
-  const base = settings.concurrency || 16;
-  const jitter = Math.sin(Date.now() / 1500) * 3 + (Math.random() - 0.5) * 4;
-  const dynamicVal = Math.max(4, Math.min(64, Math.round(base + jitter)));
-  setTargetConcurrency(dynamicVal);
-}, 1400);
+// 实时获取当前活动标签页的真实并发线程数
+async function refreshStats() {
+  if (!settings.enabled) {
+    setTargetConcurrency(0);
+    return;
+  }
+  try {
+    if (!window.chrome?.tabs?.query) {
+      setTargetConcurrency(0);
+      return;
+    }
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.id || !tab?.url || !/bilibili\.com/i.test(tab.url)) {
+      setTargetConcurrency(0);
+      return;
+    }
+    const response = await chrome.tabs.sendMessage(tab.id, { type: "getStatus" });
+    const active = Math.max(0, Number(response?.stats?.activeThreads) || 0);
+    setTargetConcurrency(active);
+  } catch (_e) {
+    setTargetConcurrency(0);
+  }
+}
+
+const statsPollTimer = setInterval(refreshStats, 500);
+refreshStats();
+window.addEventListener("unload", () => clearInterval(statsPollTimer));
 
 // ==========================================================================
 // 6 点钟内嵌动力开关 (点击变粉，按压变灰)
@@ -178,7 +197,7 @@ function updateEnableState(isEnabled) {
   dialStage.classList.toggle("disabled", !isEnabled);
 
   if (isEnabled) {
-    setTargetConcurrency(settings.concurrency || 16);
+    refreshStats();
   } else {
     setTargetConcurrency(0);
   }
@@ -232,9 +251,6 @@ concurrency.addEventListener("input", () => {
   const threads = THREAD_OPTIONS[Number(concurrency.value)];
   setSlider(threads);
   saveSettings({ concurrency: threads });
-  if (settings.enabled) {
-    setTargetConcurrency(threads);
-  }
 });
 
 episodeEnabled.addEventListener("change", () => saveSettings({ episodeEnabled: episodeEnabled.checked }));

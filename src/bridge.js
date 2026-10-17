@@ -284,4 +284,11 @@
     };
     syncTakeoverErrorNotice();
   });
+
+  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (message?.type !== "getStatus") return false;
+    window.postMessage({ channel: CHANNEL, type: "get-stats" }, "*");
+    sendResponse({ settings: latestSettings, stats: latestStats });
+    return false;
+  });
 })();
