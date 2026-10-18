@@ -1,18 +1,18 @@
 <div align="center">
 
-<img src="icons/icon-128.png" width="112" alt="线程撕裂者图标">
+<img src="icons/icon-128.png" width="112" alt="哔哩速度图标">
 
-# Bilibili 线程撕裂者
+# 哔哩速度 (非官方)
 
-**市面上能找到的效果最好的海外B站卡顿加载优化脚本**
+**针对海外 B 站卡顿与高码率加载优化的流媒体加速器 · macOS Safari 原生扩展**
 
 通过多线程并发以及调度器优化实现海外 B 站 8K、杜比视界流畅播放
 
-[![版本](https://img.shields.io/github/v/tag/MrTangLuyao/Bilibili-thread-ripper?sort=date&label=%E7%89%88%E6%9C%AC&style=flat-square&color=fb7299)](CHANGELOG.md) [![测试](https://img.shields.io/github/actions/workflow/status/MrTangLuyao/Bilibili-thread-ripper/tests.yml?branch=main&label=%E6%B5%8B%E8%AF%95&style=flat-square)](https://github.com/MrTangLuyao/Bilibili-thread-ripper/actions/workflows/tests.yml) [![Stars](https://img.shields.io/github/stars/MrTangLuyao/Bilibili-thread-ripper?style=flat-square&color=f5b301)](https://github.com/MrTangLuyao/Bilibili-thread-ripper/stargazers) [![许可证](https://img.shields.io/github/license/MrTangLuyao/Bilibili-thread-ripper?label=%E8%AE%B8%E5%8F%AF%E8%AF%81&style=flat-square&color=3b82f6)](LICENSE)
+[![版本](https://img.shields.io/github/v/release/Aintor/Bilibili-thread-ripper?sort=date&label=%E7%89%88%E6%9C%AC&style=flat-square&color=fb7299)](https://github.com/Aintor/Bilibili-thread-ripper/releases) [![测试](https://img.shields.io/github/actions/workflow/status/MrTangLuyao/Bilibili-thread-ripper/tests.yml?branch=main&label=%E6%B5%8B%E8%AF%95&style=flat-square)](https://github.com/MrTangLuyao/Bilibili-thread-ripper/actions/workflows/tests.yml) [![许可证](https://img.shields.io/github/license/MrTangLuyao/Bilibili-thread-ripper?label=%E8%AE%B8%E5%8F%AF%E8%AF%81&style=flat-square&color=3b82f6)](LICENSE)
 
-[![安装视频教程](https://img.shields.io/badge/%E5%AE%89%E8%A3%85%E8%A7%86%E9%A2%91%E6%95%99%E7%A8%8B-00A1D6?style=for-the-badge&logo=bilibili&logoColor=white)](https://www.bilibili.com/video/BV1Teec6BE3s?p=2) [![Safari 原生版下载](https://img.shields.io/badge/Safari%20原生版-下载%20DMG%20%2F%20ZIP-000000?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/Aintor/Bilibili-thread-ripper/releases/latest) [![点击安装线程撕裂者](https://img.shields.io/badge/%E7%82%B9%E5%87%BB%E5%AE%89%E8%A3%85-%E6%B2%B9%E7%8C%B4%E8%84%9A%E6%9C%AC-fb7299?style=for-the-badge&logo=bilibili&logoColor=white)](https://raw.githubusercontent.com/MrTangLuyao/Bilibili-thread-ripper/main/user_scripts/bilibili-thread-ripper.user.js)
+[![Safari 原生版下载](https://img.shields.io/badge/Safari%20原生版-下载%20DMG%20%2F%20ZIP-000000?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/Aintor/Bilibili-thread-ripper/releases/latest) [![安装视频教程](https://img.shields.io/badge/%E5%AE%89%E8%A3%85%E8%A7%86%E9%A2%91%E6%95%99%E7%A8%8B-00A1D6?style=for-the-badge&logo=bilibili&logoColor=white)](https://www.bilibili.com/video/BV1Teec6BE3s?p=2) [![油猴脚本安装](https://img.shields.io/badge/%E7%82%B9%E5%87%BB%E5%AE%89%E8%A3%85-%E6%B2%B9%E7%8C%B4%E8%84%9A%E6%9C%AC-fb7299?style=for-the-badge&logo=bilibili&logoColor=white)](https://raw.githubusercontent.com/MrTangLuyao/Bilibili-thread-ripper/main/user_scripts/bilibili-thread-ripper.user.js)
 
-[**Safari 扩展 (Fork 新增)**](#macos-safari-扩展-fork-新增) · [**油猴安装**](#安装) · [建议设置](#建议设置) · [原理](#原理解释) · [常见问题](#常见问题) · [反馈问题](#反馈问题) · [更新日志](CHANGELOG.md)
+[**Safari 扩展 (哔哩速度)**](#macos-safari-扩展-哔哩速度) · [**油猴安装**](#安装) · [建议设置](#建议设置) · [原理](#原理解释) · [常见问题](#常见问题) · [反馈问题](#反馈问题) · [更新日志](CHANGELOG.md)
 
 <br>
 
@@ -35,22 +35,24 @@
 </div>
 
 > [!NOTE]
-> 本项目是非官方、实验性质的开源项目。它不会绕过会员、登录、区域、清晰度、审核状态、数字版权保护或媒体签名限制。
+> **非官方项目声明**：
+> 本项目为**非官方**、社区开源项目（由 [@Aintor](https://github.com/Aintor) 基于原版“Bilibili 线程撕裂者”进行 macOS 原生封装与仪表盘界面重构）。本项目与哔哩哔哩（Bilibili）官方无关。
+> 本项目仅针对公开合法的客户端视频分片进行多线程缓冲与 CDN 调度，绝不绕过大会员、登录状态、区域限制、清晰度限制、数字版权管理（DRM）或媒体签名限制。
 
 > [!IMPORTANT]
 > 本脚本是针对海外用户优化的，对于中国大陆用户优化有限，如果你在中国大陆，你应该优先检查自身的网络情况。
 
 > [!TIP]
-> 如果 BTR 帮到了你，欢迎分享给同样在海外看 B 站的朋友，也可以给项目点个 Star，让更多人看到它。
+> 如果哔哩速度帮到了你，欢迎分享给同样在海外看 B 站的朋友，也可以给项目点个 Star，让更多人看到它。
 
 > [!TIP]
-> 想在手机或平板上用？可以试试把 BTR 移植进 PiliPlus 客户端的第三方项目：[nishuodedui1145-del/PiliPlus](https://github.com/nishuodedui1145-del/PiliPlus)、[lemonteaau/PiliPlus](https://github.com/lemonteaau/PiliPlus)。它们由社区独立维护，效果不做保证。
+> 想在手机或平板上用？可以试试把相关算法移植进 PiliPlus 客户端的第三方项目：[nishuodedui1145-del/PiliPlus](https://github.com/nishuodedui1145-del/PiliPlus)、[lemonteaau/PiliPlus](https://github.com/lemonteaau/PiliPlus)。它们由社区独立维护，效果不做保证。
 
-## macOS Safari 扩展 (Fork 新增)
+## macOS Safari 扩展 (哔哩速度)
 
 > [!NOTE]
 > **本节内容为 Fork 仓库（[@Aintor](https://github.com/Aintor/Bilibili-thread-ripper)）新增：**
-> 原版仓库主要面向油猴脚本与通用 Web 扩展。本分支为 macOS Safari 提供了原生 App 封装与拟物风格扩展界面，支持暗黑模式与系统毛玻璃外观，可通过下载安装包直接在 Safari 中启用。
+> 原版仓库主要面向油猴脚本与通用 Web 扩展。本项目为 macOS Safari 提供了原生 App 封装（命名为 **「哔哩速度」**）与拟物风格扩展界面，支持暗黑模式与系统毛玻璃外观，可通过下载安装包直接在 Safari 中启用。
 
 [![下载 macOS 安装包](https://img.shields.io/badge/下载%20macOS%20安装包-DMG%20%2F%20ZIP-000000?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/Aintor/Bilibili-thread-ripper/releases/latest)
 
@@ -123,7 +125,7 @@
 | --- | :---: | --- | --- |
 | Chrome、Edge 等 Chromium 内核 | 支持 | [暴力猴插件](https://violentmonkey.github.io/) | 需要打开“允许运行用户脚本” |
 | Firefox | 支持 | [暴力猴插件](https://violentmonkey.github.io/) | |
-| Safari | 支持 | [原生扩展（推荐）](#macos-safari-扩展-fork-新增) / [Tampermonkey](https://www.tampermonkey.net/) | 提供独立 macOS 应用打包与暗黑仪表盘界面 |
+| Safari | 支持 | [原生扩展（推荐）](#macos-safari-扩展-哔哩速度) / [Tampermonkey](https://www.tampermonkey.net/) | 提供独立 macOS 应用打包与暗黑仪表盘界面 |
 
 > [!WARNING]
 > 如果你是早期通过视频了解到这个插件的：针对 Chrome 的独立插件版已经停止更新。请先在扩展管理里移除插件版，再按上面的步骤安装油猴脚本版，不要同时开启两个版本。
