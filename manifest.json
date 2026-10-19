@@ -1,8 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "哔哩速度 (BTR)",
+  "name": "哔哩速度",
   "short_name": "哔哩速度",
-  "version": "1.0.1",
+  "version": "1.0.1.99",
+  "version_name": "nightly-2df38c7",
   "description": "保留哔哩哔哩原生播放器，通过多并发流与智能 CDN 加速视频缓冲与加载速度。",
   "permissions": [
     "storage"
