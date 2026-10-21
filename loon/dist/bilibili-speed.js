@@ -2253,6 +2253,15 @@ class PlayViewUniteReply$Type extends MessageType {
 }
 var PlayViewUniteReply = new PlayViewUniteReply$Type;
 
+class PlayViewReply$Type extends MessageType {
+  constructor() {
+    super("bilibili.pgc.gateway.player.v2.PlayViewReply", [
+      { no: 2, name: "vod_info", kind: "message", T: () => VodInfo }
+    ]);
+  }
+}
+var PlayViewReply = new PlayViewReply$Type;
+
 // src/cdn-core.ts
 var MAINLAND_HOSTS = Object.freeze([
   "upos-sz-mirrorali.bilivideo.com",
@@ -6010,7 +6019,8 @@ async function handleResponse() {
   try {
     const { payload, wasCompressed } = decodeGrpc(rawBytes);
     const preferredHosts = getPreferredHosts();
-    const reply = PlayViewUniteReply.fromBinary(payload);
+    const isPlayView = typeof $request !== "undefined" && $request?.url && $request.url.includes("/PlayView") && !$request.url.includes("/PlayViewUnite");
+    const reply = isPlayView ? PlayViewReply.fromBinary(payload) : PlayViewUniteReply.fromBinary(payload);
     let videoCount = 0;
     let audioCount = 0;
     let selectedMainHost = "";
@@ -6079,7 +6089,7 @@ async function handleResponse() {
       return;
     }
     console.log(`[哔哩速度] 成功优化 ${videoCount} 条视频流 + ${audioCount} 条音频流，主节点提升为: ${selectedMainHost || "优质官方CDN"}`);
-    const newProto = PlayViewUniteReply.toBinary(reply);
+    const newProto = isPlayView ? PlayViewReply.toBinary(reply) : PlayViewUniteReply.toBinary(reply);
     const finalGrpcBytes = encodeGrpc(newProto, wasCompressed);
     $done({ body: finalGrpcBytes, bodyBytes: finalGrpcBytes });
   } catch (err2) {

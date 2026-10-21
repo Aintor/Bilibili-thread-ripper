@@ -185,4 +185,33 @@ describe("CDN Core Algorithms Ported from 哔哩速度", () => {
     expect(decoded.vodInfo?.lossLessItem?.isLosslessAudio).toBe(true);
     expect(decoded.vodInfo?.lossLessItem?.audio?.baseUrl).toContain("hires.m4s");
   });
+
+  it("should serialize and deserialize PlayViewReply (PGC / Legacy PlayURL)", async () => {
+    const { PlayViewReply } = await import("../src/types");
+    const dummy = {
+      vodInfo: {
+        quality: 112,
+        format: "dash",
+        timelength: 140000,
+        videoCodecid: 7,
+        streamList: [],
+        dashAudio: [
+          {
+            id: 30280,
+            baseUrl: "https://upos-sz-mirrorali.bilivideo.com/upgcxcode/pgc_audio.m4s",
+            backupUrl: [],
+            bandwidth: 192000,
+            codecid: 0,
+            md5: "pgcmd5",
+            size: 2500000,
+          }
+        ],
+      }
+    };
+
+    const bin = PlayViewReply.toBinary(PlayViewReply.create(dummy));
+    const decoded = PlayViewReply.fromBinary(bin);
+    expect(decoded.vodInfo?.quality).toBe(112);
+    expect(decoded.vodInfo?.dashAudio?.[0]?.baseUrl).toContain("pgc_audio.m4s");
+  });
 });

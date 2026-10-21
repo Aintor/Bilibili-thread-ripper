@@ -2,9 +2,15 @@
  * 哔哩速度 · 手机端专属 Loon 播放选路插件 (gRPC 二进制处理器)
  */
 
-import { PlayViewUniteReply } from "./types";
+import { PlayViewUniteReply, PlayViewReply } from "./types";
 import { optimizeStreamUrls } from "./cdn-core";
 import { gzip, ungzip } from "pako";
+
+declare const $request: {
+  url: string;
+  method?: string;
+  headers?: Record<string, string>;
+};
 
 declare const $response: {
   status: number;
@@ -103,8 +109,11 @@ async function handleResponse() {
     const { payload, wasCompressed } = decodeGrpc(rawBytes);
     const preferredHosts = getPreferredHosts();
 
-    // 1. 反序列化 gRPC Protobuf 响应
-    const reply = PlayViewUniteReply.fromBinary(payload);
+    // 1. 反序列化 gRPC Protobuf 响应 (自动适配 PlayViewUnite 与 PlayView)
+    const isPlayView = typeof $request !== "undefined" && $request?.url && $request.url.includes("/PlayView") && !$request.url.includes("/PlayViewUnite");
+    const reply: any = isPlayView
+      ? PlayViewReply.fromBinary(payload)
+      : PlayViewUniteReply.fromBinary(payload);
 
     let videoCount = 0;
     let audioCount = 0;
@@ -183,7 +192,9 @@ async function handleResponse() {
     console.log(`[哔哩速度] 成功优化 ${videoCount} 条视频流 + ${audioCount} 条音频流，主节点提升为: ${selectedMainHost || "优质官方CDN"}`);
 
     // 3. 重新序列化 Protobuf 并封装 gRPC 帧头 (保持与客户端期望的压缩状态一致)
-    const newProto = PlayViewUniteReply.toBinary(reply);
+    const newProto = isPlayView
+      ? PlayViewReply.toBinary(reply)
+      : PlayViewUniteReply.toBinary(reply);
     const finalGrpcBytes = encodeGrpc(newProto, wasCompressed);
 
     $done({ body: finalGrpcBytes, bodyBytes: finalGrpcBytes });

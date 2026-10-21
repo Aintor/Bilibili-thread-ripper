@@ -137,3 +137,12 @@ export class PlayViewUniteReply$Type extends MessageType<any> {
   }
 }
 export const PlayViewUniteReply = new PlayViewUniteReply$Type();
+
+export class PlayViewReply$Type extends MessageType<any> {
+  constructor() {
+    super("bilibili.pgc.gateway.player.v2.PlayViewReply", [
+      { no: 2, name: "vod_info", kind: "message", T: () => VodInfo },
+    ]);
+  }
+}
+export const PlayViewReply = new PlayViewReply$Type();
