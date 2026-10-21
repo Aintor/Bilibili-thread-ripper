@@ -66,6 +66,42 @@ export class SegmentVideo$Type extends MessageType<any> {
 }
 export const SegmentVideo = new SegmentVideo$Type();
 
+export class DashItem$Type extends MessageType<any> {
+  constructor() {
+    super("bilibili.playershared.DashItem", [
+      { no: 1, name: "id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+      { no: 2, name: "base_url", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+      { no: 3, name: "backup_url", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
+      { no: 4, name: "bandwidth", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+      { no: 5, name: "codecid", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+      { no: 6, name: "md5", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+      { no: 7, name: "size", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 2 /*LongType.NUMBER*/ },
+    ]);
+  }
+}
+export const DashItem = new DashItem$Type();
+
+export class DolbyItem$Type extends MessageType<any> {
+  constructor() {
+    super("bilibili.playershared.DolbyItem", [
+      { no: 1, name: "type", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
+      { no: 2, name: "audio", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => DashItem },
+    ]);
+  }
+}
+export const DolbyItem = new DolbyItem$Type();
+
+export class LossLessItem$Type extends MessageType<any> {
+  constructor() {
+    super("bilibili.playershared.LossLessItem", [
+      { no: 1, name: "is_lossless_audio", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+      { no: 2, name: "audio", kind: "message", T: () => DashItem },
+      { no: 3, name: "need_vip", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+    ]);
+  }
+}
+export const LossLessItem = new LossLessItem$Type();
+
 export class Stream$Type extends MessageType<any> {
   constructor() {
     super("bilibili.playershared.Stream", [
@@ -84,7 +120,10 @@ export class VodInfo$Type extends MessageType<any> {
       { no: 2, name: "format", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
       { no: 3, name: "timelength", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 2 /*LongType.NUMBER*/ },
       { no: 4, name: "video_codecid", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
-      { no: 5, name: "stream_list", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Stream },
+      { no: 5, name: "stream_list", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => Stream },
+      { no: 6, name: "dash_audio", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => DashItem },
+      { no: 7, name: "dolby", kind: "message", T: () => DolbyItem },
+      { no: 9, name: "loss_less_item", kind: "message", T: () => LossLessItem },
     ]);
   }
 }

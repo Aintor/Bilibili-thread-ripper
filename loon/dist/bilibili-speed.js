@@ -2181,6 +2181,42 @@ class SegmentVideo$Type extends MessageType {
 }
 var SegmentVideo = new SegmentVideo$Type;
 
+class DashItem$Type extends MessageType {
+  constructor() {
+    super("bilibili.playershared.DashItem", [
+      { no: 1, name: "id", kind: "scalar", T: 13 },
+      { no: 2, name: "base_url", kind: "scalar", T: 9 },
+      { no: 3, name: "backup_url", kind: "scalar", repeat: 2, T: 9 },
+      { no: 4, name: "bandwidth", kind: "scalar", T: 13 },
+      { no: 5, name: "codecid", kind: "scalar", T: 13 },
+      { no: 6, name: "md5", kind: "scalar", T: 9 },
+      { no: 7, name: "size", kind: "scalar", T: 4, L: 2 }
+    ]);
+  }
+}
+var DashItem = new DashItem$Type;
+
+class DolbyItem$Type extends MessageType {
+  constructor() {
+    super("bilibili.playershared.DolbyItem", [
+      { no: 1, name: "type", kind: "scalar", T: 5 },
+      { no: 2, name: "audio", kind: "message", repeat: 2, T: () => DashItem }
+    ]);
+  }
+}
+var DolbyItem = new DolbyItem$Type;
+
+class LossLessItem$Type extends MessageType {
+  constructor() {
+    super("bilibili.playershared.LossLessItem", [
+      { no: 1, name: "is_lossless_audio", kind: "scalar", T: 8 },
+      { no: 2, name: "audio", kind: "message", T: () => DashItem },
+      { no: 3, name: "need_vip", kind: "scalar", T: 8 }
+    ]);
+  }
+}
+var LossLessItem = new LossLessItem$Type;
+
 class Stream$Type extends MessageType {
   constructor() {
     super("bilibili.playershared.Stream", [
@@ -2199,7 +2235,10 @@ class VodInfo$Type extends MessageType {
       { no: 2, name: "format", kind: "scalar", T: 9 },
       { no: 3, name: "timelength", kind: "scalar", T: 4, L: 2 },
       { no: 4, name: "video_codecid", kind: "scalar", T: 13 },
-      { no: 5, name: "stream_list", kind: "message", repeat: 1, T: () => Stream }
+      { no: 5, name: "stream_list", kind: "message", repeat: 2, T: () => Stream },
+      { no: 6, name: "dash_audio", kind: "message", repeat: 2, T: () => DashItem },
+      { no: 7, name: "dolby", kind: "message", T: () => DolbyItem },
+      { no: 9, name: "loss_less_item", kind: "message", T: () => LossLessItem }
     ]);
   }
 }
@@ -2246,6 +2285,22 @@ function isAkamaiUrl(value) {
     return false;
   }
 }
+function isUposUrl(value) {
+  try {
+    const host = new URL(value).hostname.toLowerCase();
+    return host.includes("upos-") || host.includes("cn-hk-eq");
+  } catch {
+    return false;
+  }
+}
+function isGotchaUrl(value) {
+  try {
+    const host = new URL(value).hostname.toLowerCase();
+    return host.includes("ov-gotcha") || host.includes("gotcha");
+  } catch {
+    return false;
+  }
+}
 function isRelayUrl(value) {
   try {
     const url = new URL(value);
@@ -2273,7 +2328,14 @@ function optimizeStreamUrls(primary, backup = [], preferredOrder = []) {
   const allOriginals = [primary, ...backup].filter(Boolean);
   const cleanOriginals = allOriginals.filter((url) => !isRelayUrl(url));
   const fallbackList = cleanOriginals.length > 0 ? cleanOriginals : allOriginals;
-  const donor = fallbackList.find((url) => !isAkamaiUrl(url)) || fallbackList[0];
+  const uposDonor = fallbackList.find(isUposUrl);
+  if (!uposDonor && fallbackList.some(isGotchaUrl)) {
+    return {
+      baseUrl: fallbackList[0],
+      backupUrls: fallbackList.slice(1)
+    };
+  }
+  const donor = uposDonor || fallbackList.find((url) => !isAkamaiUrl(url)) || fallbackList[0];
   if (!donor) {
     return { baseUrl: primary, backupUrls: backup };
   }
@@ -5949,7 +6011,8 @@ async function handleResponse() {
     const { payload, wasCompressed } = decodeGrpc(rawBytes);
     const preferredHosts = getPreferredHosts();
     const reply = PlayViewUniteReply.fromBinary(payload);
-    let modifiedCount = 0;
+    let videoCount = 0;
+    let audioCount = 0;
     let selectedMainHost = "";
     if (reply?.vodInfo?.streamList && Array.isArray(reply.vodInfo.streamList)) {
       for (const stream of reply.vodInfo.streamList) {
@@ -5963,7 +6026,7 @@ async function handleResponse() {
               selectedMainHost = new URL(optimized.baseUrl).hostname;
             } catch {}
           }
-          modifiedCount++;
+          videoCount++;
         } else if (stream.content?.oneofKind === "segmentVideo" && stream.content.segmentVideo) {
           const segVideo = stream.content.segmentVideo;
           if (Array.isArray(segVideo.segment)) {
@@ -5976,18 +6039,46 @@ async function handleResponse() {
                   selectedMainHost = new URL(optimized.baseUrl).hostname;
                 } catch {}
               }
-              modifiedCount++;
+              videoCount++;
             }
           }
         }
       }
     }
-    if (modifiedCount === 0) {
-      console.log("[哔哩速度] 响应中未找到可优化的视频流");
+    if (reply?.vodInfo?.dashAudio && Array.isArray(reply.vodInfo.dashAudio)) {
+      for (const audio of reply.vodInfo.dashAudio) {
+        if (audio.baseUrl) {
+          const optimized = optimizeStreamUrls(audio.baseUrl, audio.backupUrl || [], preferredHosts);
+          audio.baseUrl = optimized.baseUrl;
+          audio.backupUrl = optimized.backupUrls;
+          audioCount++;
+        }
+      }
+    }
+    if (reply?.vodInfo?.dolby?.audio && Array.isArray(reply.vodInfo.dolby.audio)) {
+      for (const audio of reply.vodInfo.dolby.audio) {
+        if (audio.baseUrl) {
+          const optimized = optimizeStreamUrls(audio.baseUrl, audio.backupUrl || [], preferredHosts);
+          audio.baseUrl = optimized.baseUrl;
+          audio.backupUrl = optimized.backupUrls;
+          audioCount++;
+        }
+      }
+    }
+    if (reply?.vodInfo?.lossLessItem?.audio && reply.vodInfo.lossLessItem.audio.baseUrl) {
+      const audio = reply.vodInfo.lossLessItem.audio;
+      const optimized = optimizeStreamUrls(audio.baseUrl, audio.backupUrl || [], preferredHosts);
+      audio.baseUrl = optimized.baseUrl;
+      audio.backupUrl = optimized.backupUrls;
+      audioCount++;
+    }
+    const totalModified = videoCount + audioCount;
+    if (totalModified === 0) {
+      console.log("[哔哩速度] 响应中未找到可优化的音视频流");
       $done({});
       return;
     }
-    console.log(`[哔哩速度] 成功优化 ${modifiedCount} 条流，主节点提升为: ${selectedMainHost || "优质官方CDN"}`);
+    console.log(`[哔哩速度] 成功优化 ${videoCount} 条视频流 + ${audioCount} 条音频流，主节点提升为: ${selectedMainHost || "优质官方CDN"}`);
     const newProto = PlayViewUniteReply.toBinary(reply);
     const finalGrpcBytes = encodeGrpc(newProto, wasCompressed);
     $done({ body: finalGrpcBytes, bodyBytes: finalGrpcBytes });

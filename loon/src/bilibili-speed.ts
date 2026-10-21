@@ -106,10 +106,12 @@ async function handleResponse() {
     // 1. 反序列化 gRPC Protobuf 响应
     const reply = PlayViewUniteReply.fromBinary(payload);
 
-    let modifiedCount = 0;
+    let videoCount = 0;
+    let audioCount = 0;
     let selectedMainHost = "";
 
     // 2. 遍历流媒体列表，应用【哔哩速度】核心调度算法
+    // A. 视频轨优化 (streamList: DashVideo / SegmentVideo)
     if (reply?.vodInfo?.streamList && Array.isArray(reply.vodInfo.streamList)) {
       for (const stream of reply.vodInfo.streamList) {
         if (stream.content?.oneofKind === "dashVideo" && stream.content.dashVideo) {
@@ -120,7 +122,7 @@ async function handleResponse() {
           if (!selectedMainHost && optimized.baseUrl) {
             try { selectedMainHost = new URL(optimized.baseUrl).hostname; } catch {}
           }
-          modifiedCount++;
+          videoCount++;
         } else if (stream.content?.oneofKind === "segmentVideo" && stream.content.segmentVideo) {
           const segVideo = stream.content.segmentVideo;
           if (Array.isArray(segVideo.segment)) {
@@ -131,20 +133,54 @@ async function handleResponse() {
               if (!selectedMainHost && optimized.baseUrl) {
                 try { selectedMainHost = new URL(optimized.baseUrl).hostname; } catch {}
               }
-              modifiedCount++;
+              videoCount++;
             }
           }
         }
       }
     }
 
-    if (modifiedCount === 0) {
-      console.log("[哔哩速度] 响应中未找到可优化的视频流");
+    // B. 音频轨优化 (dashAudio: DashItem - 伴音流)
+    if (reply?.vodInfo?.dashAudio && Array.isArray(reply.vodInfo.dashAudio)) {
+      for (const audio of reply.vodInfo.dashAudio) {
+        if (audio.baseUrl) {
+          const optimized = optimizeStreamUrls(audio.baseUrl, audio.backupUrl || [], preferredHosts);
+          audio.baseUrl = optimized.baseUrl;
+          audio.backupUrl = optimized.backupUrls;
+          audioCount++;
+        }
+      }
+    }
+
+    // C. 杜比伴音轨优化 (dolby.audio: DashItem)
+    if (reply?.vodInfo?.dolby?.audio && Array.isArray(reply.vodInfo.dolby.audio)) {
+      for (const audio of reply.vodInfo.dolby.audio) {
+        if (audio.baseUrl) {
+          const optimized = optimizeStreamUrls(audio.baseUrl, audio.backupUrl || [], preferredHosts);
+          audio.baseUrl = optimized.baseUrl;
+          audio.backupUrl = optimized.backupUrls;
+          audioCount++;
+        }
+      }
+    }
+
+    // D. Hi-Res 无损伴音轨优化 (lossLessItem.audio: DashItem)
+    if (reply?.vodInfo?.lossLessItem?.audio && reply.vodInfo.lossLessItem.audio.baseUrl) {
+      const audio = reply.vodInfo.lossLessItem.audio;
+      const optimized = optimizeStreamUrls(audio.baseUrl, audio.backupUrl || [], preferredHosts);
+      audio.baseUrl = optimized.baseUrl;
+      audio.backupUrl = optimized.backupUrls;
+      audioCount++;
+    }
+
+    const totalModified = videoCount + audioCount;
+    if (totalModified === 0) {
+      console.log("[哔哩速度] 响应中未找到可优化的音视频流");
       $done({});
       return;
     }
 
-    console.log(`[哔哩速度] 成功优化 ${modifiedCount} 条流，主节点提升为: ${selectedMainHost || "优质官方CDN"}`);
+    console.log(`[哔哩速度] 成功优化 ${videoCount} 条视频流 + ${audioCount} 条音频流，主节点提升为: ${selectedMainHost || "优质官方CDN"}`);
 
     // 3. 重新序列化 Protobuf 并封装 gRPC 帧头 (保持与客户端期望的压缩状态一致)
     const newProto = PlayViewUniteReply.toBinary(reply);

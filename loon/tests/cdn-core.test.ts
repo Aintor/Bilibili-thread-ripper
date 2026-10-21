@@ -86,7 +86,7 @@ describe("CDN Core Algorithms Ported from 哔哩速度", () => {
       }
     };
 
-    const bin = PlayViewUniteReply.toBinary(dummy);
+    const bin = PlayViewUniteReply.toBinary(PlayViewUniteReply.create(dummy));
     expect(bin.length).toBeGreaterThan(0);
 
     const decoded = PlayViewUniteReply.fromBinary(bin);
@@ -105,7 +105,7 @@ describe("CDN Core Algorithms Ported from 哔哩速度", () => {
         streamList: []
       }
     };
-    const protoBytes = PlayViewUniteReply.toBinary(dummy);
+    const protoBytes = PlayViewUniteReply.toBinary(PlayViewUniteReply.create(dummy));
     const compressed = gzip(protoBytes);
 
     // First byte of gzip is 0x1f (decimal 31) -> (3 << 3) | 7 = field 3, wire type 7!
@@ -115,5 +115,74 @@ describe("CDN Core Algorithms Ported from 哔哩速度", () => {
     const uncompressed = ungzip(compressed);
     const reply = PlayViewUniteReply.fromBinary(uncompressed);
     expect(reply.vodInfo?.quality).toBe(112);
+  });
+
+  it("should correctly identify Gotcha overseas URLs and avoid cross-protocol 403 on pure Gotcha streams", () => {
+    const gotcha1 = "https://d1--ov-gotcha07.bilivideo.com/gotcha/video.m4s?token=zen";
+    const gotcha2 = "https://d1--ov-gotcha07b.bilivideo.com/gotcha/video.m4s?token=zen";
+    const pcdn = "https://test.mcdn.bilivideo.cn:8082/resource/video.m4s";
+
+    const res = optimizeStreamUrls(pcdn, [gotcha1, gotcha2]);
+    // Should clean PCDN and keep Gotcha baseUrl directly without forcing mainland UPOS 403
+    expect(res.baseUrl).toContain("d1--ov-gotcha07.bilivideo.com");
+    expect(res.backupUrls[0]).toContain("d1--ov-gotcha07b.bilivideo.com");
+    expect(res.backupUrls.some(u => u.includes("mcdn"))).toBe(false);
+  });
+
+  it("should serialize and deserialize audio tracks including dashAudio, dolby, and lossLessItem", () => {
+    const dummy = {
+      vodInfo: {
+        quality: 80,
+        format: "mp4",
+        timelength: 60000,
+        videoCodecid: 7,
+        streamList: [],
+        dashAudio: [
+          {
+            id: 30280,
+            baseUrl: "https://upos-sz-mirrorali.bilivideo.com/upgcxcode/audio.m4s",
+            backupUrl: ["https://upos-sz-mirrorhw.bilivideo.com/upgcxcode/audio.m4s"],
+            bandwidth: 192000,
+            codecid: 0,
+            md5: "audiomd5",
+            size: 1500000,
+          }
+        ],
+        dolby: {
+          type: 1,
+          audio: [
+            {
+              id: 30250,
+              baseUrl: "https://upos-sz-mirrorali.bilivideo.com/upgcxcode/dolby.m4s",
+              backupUrl: [],
+              bandwidth: 256000,
+              codecid: 0,
+              md5: "dolbymd5",
+              size: 2000000,
+            }
+          ]
+        },
+        lossLessItem: {
+          isLosslessAudio: true,
+          needVip: true,
+          audio: {
+            id: 30251,
+            baseUrl: "https://upos-sz-mirrorali.bilivideo.com/upgcxcode/hires.m4s",
+            backupUrl: [],
+            bandwidth: 960000,
+            codecid: 0,
+            md5: "hiresmd5",
+            size: 8000000,
+          }
+        }
+      }
+    };
+
+    const bin = PlayViewUniteReply.toBinary(dummy);
+    const decoded = PlayViewUniteReply.fromBinary(bin);
+    expect(decoded.vodInfo?.dashAudio?.[0]?.baseUrl).toContain("audio.m4s");
+    expect(decoded.vodInfo?.dolby?.audio?.[0]?.id).toBe(30250);
+    expect(decoded.vodInfo?.lossLessItem?.isLosslessAudio).toBe(true);
+    expect(decoded.vodInfo?.lossLessItem?.audio?.baseUrl).toContain("hires.m4s");
   });
 });

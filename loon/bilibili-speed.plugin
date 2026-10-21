@@ -5,8 +5,8 @@
 #!homepage = https://github.com/Aintor/Bilibili-thread-ripper
 #!system = iOS
 #!system_version = 15
-#!date = 2026-10-21 22:55:00
-#!version = 1.0.2
+#!date = 2026-10-21 23:25:00
+#!version = 1.0.3
 
 [Script]
 # 1. 核心选路：拦截 B 站手机客户端 gRPC 播放响应，动态注入最优 CDN 矩阵并彻底拔除 PCDN

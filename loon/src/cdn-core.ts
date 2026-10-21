@@ -41,6 +41,30 @@ export function isAkamaiUrl(value: string): boolean {
 }
 
 /**
+ * 判断是否为 UPOS / 官方自建分发架构
+ */
+export function isUposUrl(value: string): boolean {
+  try {
+    const host = new URL(value).hostname.toLowerCase();
+    return host.includes("upos-") || host.includes("cn-hk-eq");
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 判断是否为海外专用 Gotcha 节点 (Zenlayer 等)
+ */
+export function isGotchaUrl(value: string): boolean {
+  try {
+    const host = new URL(value).hostname.toLowerCase();
+    return host.includes("ov-gotcha") || host.includes("gotcha");
+  } catch {
+    return false;
+  }
+}
+
+/**
  * 判断是否为 PCDN / MCDN / Relay 中继节点 (特征清洗)
  */
 export function isRelayUrl(value: string): boolean {
@@ -100,8 +124,20 @@ export function optimizeStreamUrls(
   const cleanOriginals = allOriginals.filter((url) => !isRelayUrl(url));
   const fallbackList = cleanOriginals.length > 0 ? cleanOriginals : allOriginals;
 
-  // 2. 寻找 Donor 签名供体 (优先非 Akamai 的普通大陆/官方节点)
-  const donor = fallbackList.find((url) => !isAkamaiUrl(url)) || fallbackList[0];
+  // 2. 检查是否有合法的 UPOS 供体
+  const uposDonor = fallbackList.find(isUposUrl);
+
+  // 如果原本全是 Gotcha 海外专用流且没有任何 UPOS 节点，切勿强行切为大陆 UPOS（会触发 403 惩罚导致起播严重卡顿）
+  if (!uposDonor && fallbackList.some(isGotchaUrl)) {
+    // 纯 Gotcha 流：清洗 PCDN，保留官方 Gotcha 主备节点，避免跨系统 403 回退
+    return {
+      baseUrl: fallbackList[0],
+      backupUrls: fallbackList.slice(1),
+    };
+  }
+
+  // 3. 寻找 Donor 签名供体 (优先非 Akamai 的 UPOS 节点)
+  const donor = uposDonor || fallbackList.find((url) => !isAkamaiUrl(url)) || fallbackList[0];
   if (!donor) {
     return { baseUrl: primary, backupUrls: backup };
   }
