@@ -8,6 +8,7 @@
 
 [![版本](https://img.shields.io/github/v/release/Aintor/Bilibili-thread-ripper?sort=date&label=%E7%89%88%E6%9C%AC&style=flat-square&color=fb7299)](https://github.com/Aintor/Bilibili-thread-ripper/releases)
 [![Safari 原生版下载](https://img.shields.io/badge/macOS%20Safari%20版-下载%20DMG%20%2F%20ZIP-000000?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/Aintor/Bilibili-thread-ripper/releases/latest)
+[![iOS Loon 插件](https://img.shields.io/badge/iOS%20Loon%20插件-一键订阅-007AFF?style=for-the-badge&logo=apple&logoColor=white)](loon/README.md)
 [![许可证](https://img.shields.io/github/license/MrTangLuyao/Bilibili-thread-ripper?label=%E8%AE%B8%E5%8F%AF%E8%AF%81&style=flat-square&color=3b82f6)](LICENSE)
 
 <br>
@@ -60,6 +61,23 @@
    - 菜单栏 **开发** -> 勾选 **「允许未签名的扩展」**；
    - 菜单栏 **设置** -> **扩展** -> 勾选启用 **「哔哩速度」**；
    - **关键权限设置**：在扩展设置中，将 `bilibili.com` 与 `hdslb.com` 均设为 **「总是允许」**，确保扩展能正常接管视频流缓冲。
+
+---
+
+## 📱 iOS 手机端使用指南 (Loon 专属插件)
+
+针对移动端无法直接在浏览器内注入 JavaScript 播放器的局限，本项目专门移植了核心 CDN 调度与防 403 算法，推出了 **iOS Loon 智能选路插件**：
+
+- **一键导入链接**：
+  ```text
+  https://raw.githubusercontent.com/Aintor/Bilibili-thread-ripper/main/loon/bilibili-speed.plugin
+  ```
+- **核心能力**：
+  1. **PlayViewUnite 协议层介入**：通过 gRPC 二进制重构，彻底解决切片重定向导致的 403 报错；
+  2. **PCDN / MCDN 强力拔除**：拦截并移除所有劣质边缘节点；
+  3. **Donor（供体）跨节点合成**：基于官方合法签名，自动合成 10+ 个顶级正规 CDN 候选池；
+  4. **异步零延迟测速**：后台静默测速探针，起播零转圈直接命中当前网络下最快节点。
+- 详情请查阅 [**Loon 插件完整文档**](loon/README.md)。
 
 ---
 

@@ -4,6 +4,7 @@ private/
 
 # 本地构建结果
 dist/
+!loon/dist/
 *.crx
 *.zip
 

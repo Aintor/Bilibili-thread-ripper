@@ -1,0 +1,12 @@
+# dependencies
+node_modules/
+
+# logs
+*.log
+
+# caches
+.cache/
+*.tsbuildinfo
+
+# MacOS
+.DS_Store

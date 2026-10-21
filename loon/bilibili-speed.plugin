@@ -1,0 +1,19 @@
+#!name = 哔哩速度 (Bilibili Speed)
+#!desc = 移植「哔哩速度」核心架构：PlayViewUnite 智能选路、PCDN 彻底清洗、Donor 跨节点合成、0 毫秒智能测速与熔断。
+#!author = Aintor
+#!icon = https://raw.githubusercontent.com/Aintor/Bilibili-thread-ripper/main/icons/icon-128.png
+#!homepage = https://github.com/Aintor/Bilibili-thread-ripper
+#!system = iOS
+#!system_version = 15
+#!date = 2026-10-21 22:38:00
+#!version = 1.0.0
+
+[Script]
+# 1. 核心选路：拦截 B 站手机客户端 gRPC 播放响应，动态注入最优 CDN 矩阵并彻底拔除 PCDN
+http-response ^https:\/\/(?:grpc|app)\.biliapi\.net\/bilibili\.app\.playerunite\.v1\.Player\/PlayViewUnite script-path=https://raw.githubusercontent.com/Aintor/Bilibili-thread-ripper/main/loon/dist/bilibili-speed.js, binary-mode=true, timeout=10, tag=哔哩速度 · 播放选路
+
+# 2. 异步探针：定期在后台测速阿里/华为/腾讯/海外等主流 CDN 往返延迟，存入本地内存供起播 0 毫秒无感读取 (可在 Loon 手动点击立即运行)
+cron "*/15 * * * *" script-path=https://raw.githubusercontent.com/Aintor/Bilibili-thread-ripper/main/loon/dist/bilibili-speed-probe.js, timeout=10, tag=哔哩速度 · CDN测速探针
+
+[MITM]
+hostname = grpc.biliapi.net, app.biliapi.net

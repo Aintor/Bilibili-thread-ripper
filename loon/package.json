@@ -1,0 +1,16 @@
+{
+  "name": "bilibili-speed-loon",
+  "version": "1.0.0",
+  "description": "Bilibili Speed mobile CDN optimization plugin for Loon",
+  "scripts": {
+    "build": "bun build src/bilibili-speed.ts --outfile dist/bilibili-speed.js && bun build src/bilibili-speed-probe.ts --outfile dist/bilibili-speed-probe.js",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@protobuf-ts/runtime": "^2.11.1"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.3",
+    "typescript": "^5.9.3"
+  }
+}
