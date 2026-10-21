@@ -4,6 +4,7 @@
 
 import { PlayViewUniteReply } from "./types";
 import { optimizeStreamUrls } from "./cdn-core";
+import { gzip, ungzip } from "pako";
 
 declare const $response: {
   status: number;
@@ -17,18 +18,58 @@ declare const $persistentStore: {
   read: (key: string) => string | null;
   write: (value: string, key: string) => boolean;
 };
+declare const $utils: {
+  ungzip?: (data: Uint8Array) => Uint8Array;
+  gzip?: (data: Uint8Array) => Uint8Array;
+};
 
-function decodeGrpc(bytes: Uint8Array): Uint8Array {
-  if (!bytes || bytes.length < 5) return bytes;
-  return bytes.subarray(5);
+function decodeGrpc(bytes: Uint8Array): { payload: Uint8Array; wasCompressed: boolean } {
+  if (!bytes || bytes.length < 5) {
+    return { payload: bytes, wasCompressed: false };
+  }
+  const wasCompressed = bytes[0] === 1;
+  const rawData = bytes.subarray(5);
+  let payload = rawData;
+
+  if (wasCompressed) {
+    try {
+      if (typeof $utils !== "undefined" && typeof $utils.ungzip === "function") {
+        payload = $utils.ungzip(rawData);
+      } else {
+        payload = ungzip(rawData);
+      }
+    } catch (e) {
+      console.log(`[哔哩速度] ungzip 失败，尝试原始数据: ${e}`);
+    }
+  }
+
+  return { payload, wasCompressed };
 }
 
-function encodeGrpc(payload: Uint8Array): Uint8Array {
-  const frame = new Uint8Array(5 + payload.length);
-  frame[0] = 0; // 未压缩标志
+function encodeGrpc(payload: Uint8Array, wasCompressed: boolean): Uint8Array {
+  let body = payload;
+  let compFlag = 0;
+
+  if (wasCompressed) {
+    try {
+      if (typeof $utils !== "undefined" && typeof $utils.gzip === "function") {
+        body = $utils.gzip(payload);
+      } else {
+        body = gzip(payload);
+      }
+      compFlag = 1;
+    } catch (e) {
+      console.log(`[哔哩速度] gzip 压缩失败，采用明文传输: ${e}`);
+      compFlag = 0;
+      body = payload;
+    }
+  }
+
+  const frame = new Uint8Array(5 + body.length);
+  frame[0] = compFlag;
   const view = new DataView(frame.buffer, frame.byteOffset, frame.byteLength);
-  view.setUint32(1, payload.length, false); // 网络字节序 (Big-Endian)
-  frame.set(payload, 5);
+  view.setUint32(1, body.length, false); // 网络字节序 (Big-Endian)
+  frame.set(body, 5);
   return frame;
 }
 
@@ -59,11 +100,11 @@ async function handleResponse() {
   }
 
   try {
-    const protoPayload = decodeGrpc(rawBytes);
+    const { payload, wasCompressed } = decodeGrpc(rawBytes);
     const preferredHosts = getPreferredHosts();
 
     // 1. 反序列化 gRPC Protobuf 响应
-    const reply = PlayViewUniteReply.fromBinary(protoPayload);
+    const reply = PlayViewUniteReply.fromBinary(payload);
 
     let modifiedCount = 0;
     let selectedMainHost = "";
@@ -105,9 +146,9 @@ async function handleResponse() {
 
     console.log(`[哔哩速度] 成功优化 ${modifiedCount} 条流，主节点提升为: ${selectedMainHost || "优质官方CDN"}`);
 
-    // 3. 重新序列化 Protobuf 并封装 gRPC 帧头
+    // 3. 重新序列化 Protobuf 并封装 gRPC 帧头 (保持与客户端期望的压缩状态一致)
     const newProto = PlayViewUniteReply.toBinary(reply);
-    const finalGrpcBytes = encodeGrpc(newProto);
+    const finalGrpcBytes = encodeGrpc(newProto, wasCompressed);
 
     $done({ body: finalGrpcBytes, bodyBytes: finalGrpcBytes });
   } catch (err) {

@@ -93,4 +93,27 @@ describe("CDN Core Algorithms Ported from 哔哩速度", () => {
     expect(decoded.vodInfo?.quality).toBe(80);
     expect(decoded.vodInfo?.streamList?.[0]?.content?.oneofKind).toBe("dashVideo");
   });
+
+  it("should handle GZIP-compressed gRPC frame and prevent wire type 7 error", async () => {
+    const { gzip, ungzip } = await import("pako");
+    const dummy = {
+      vodInfo: {
+        quality: 112,
+        format: "mp4",
+        timelength: 120000,
+        videoCodecid: 12,
+        streamList: []
+      }
+    };
+    const protoBytes = PlayViewUniteReply.toBinary(dummy);
+    const compressed = gzip(protoBytes);
+
+    // First byte of gzip is 0x1f (decimal 31) -> (3 << 3) | 7 = field 3, wire type 7!
+    expect(compressed[0]).toBe(0x1f);
+
+    // Uncompress and decode
+    const uncompressed = ungzip(compressed);
+    const reply = PlayViewUniteReply.fromBinary(uncompressed);
+    expect(reply.vodInfo?.quality).toBe(112);
+  });
 });
