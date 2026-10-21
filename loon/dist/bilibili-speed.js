@@ -2309,6 +2309,15 @@ function encodeGrpc(payload) {
   frame.set(payload, 5);
   return frame;
 }
+function getRawBytes() {
+  if (typeof $response === "undefined" || !$response)
+    return null;
+  if ($response.body instanceof Uint8Array)
+    return $response.body;
+  if ($response.bodyBytes instanceof Uint8Array)
+    return $response.bodyBytes;
+  return null;
+}
 function getPreferredHosts() {
   try {
     const raw = typeof $persistentStore !== "undefined" ? $persistentStore.read("bilibili_speed_cdn_ranking") : null;
@@ -2321,16 +2330,18 @@ function getPreferredHosts() {
   return [];
 }
 async function handleResponse() {
-  if (!$response || !$response.bodyBytes) {
+  const rawBytes = getRawBytes();
+  if (!rawBytes) {
+    console.log("[哔哩速度] 未收到有效的二进制响应体 (请确认 binary-body-mode=true)");
     $done({});
     return;
   }
   try {
-    const rawBytes = $response.bodyBytes;
     const protoPayload = decodeGrpc(rawBytes);
     const preferredHosts = getPreferredHosts();
     const reply = PlayViewUniteReply.fromBinary(protoPayload);
     let modifiedCount = 0;
+    let selectedMainHost = "";
     if (reply?.vodInfo?.streamList && Array.isArray(reply.vodInfo.streamList)) {
       for (const stream of reply.vodInfo.streamList) {
         if (stream.content?.oneofKind === "dashVideo" && stream.content.dashVideo) {
@@ -2338,6 +2349,11 @@ async function handleResponse() {
           const optimized = optimizeStreamUrls(dash.baseUrl, dash.backupUrl || [], preferredHosts);
           dash.baseUrl = optimized.baseUrl;
           dash.backupUrl = optimized.backupUrls;
+          if (!selectedMainHost && optimized.baseUrl) {
+            try {
+              selectedMainHost = new URL(optimized.baseUrl).hostname;
+            } catch {}
+          }
           modifiedCount++;
         } else if (stream.content?.oneofKind === "segmentVideo" && stream.content.segmentVideo) {
           const segVideo = stream.content.segmentVideo;
@@ -2346,6 +2362,11 @@ async function handleResponse() {
               const optimized = optimizeStreamUrls(seg.url, seg.backupUrl || [], preferredHosts);
               seg.url = optimized.baseUrl;
               seg.backupUrl = optimized.backupUrls;
+              if (!selectedMainHost && optimized.baseUrl) {
+                try {
+                  selectedMainHost = new URL(optimized.baseUrl).hostname;
+                } catch {}
+              }
               modifiedCount++;
             }
           }
@@ -2353,12 +2374,14 @@ async function handleResponse() {
       }
     }
     if (modifiedCount === 0) {
+      console.log("[哔哩速度] 响应中未找到可优化的视频流");
       $done({});
       return;
     }
+    console.log(`[哔哩速度] 成功优化 ${modifiedCount} 条流，主节点提升为: ${selectedMainHost || "优质官方CDN"}`);
     const newProto = PlayViewUniteReply.toBinary(reply);
     const finalGrpcBytes = encodeGrpc(newProto);
-    $done({ bodyBytes: finalGrpcBytes });
+    $done({ body: finalGrpcBytes, bodyBytes: finalGrpcBytes });
   } catch (err) {
     console.log(`[哔哩速度] 选路处理跳过或异常: ${err}`);
     $done({});

@@ -8,7 +8,7 @@ import { optimizeStreamUrls } from "./cdn-core";
 declare const $response: {
   status: number;
   headers: Record<string, string>;
-  body?: string;
+  body?: string | Uint8Array;
   bodyBytes?: Uint8Array;
 };
 
@@ -32,6 +32,13 @@ function encodeGrpc(payload: Uint8Array): Uint8Array {
   return frame;
 }
 
+function getRawBytes(): Uint8Array | null {
+  if (typeof $response === "undefined" || !$response) return null;
+  if ($response.body instanceof Uint8Array) return $response.body;
+  if ($response.bodyBytes instanceof Uint8Array) return $response.bodyBytes;
+  return null;
+}
+
 function getPreferredHosts(): string[] {
   try {
     const raw = typeof $persistentStore !== "undefined" ? $persistentStore.read("bilibili_speed_cdn_ranking") : null;
@@ -44,13 +51,14 @@ function getPreferredHosts(): string[] {
 }
 
 async function handleResponse() {
-  if (!$response || !$response.bodyBytes) {
+  const rawBytes = getRawBytes();
+  if (!rawBytes) {
+    console.log("[哔哩速度] 未收到有效的二进制响应体 (请确认 binary-body-mode=true)");
     $done({});
     return;
   }
 
   try {
-    const rawBytes = $response.bodyBytes;
     const protoPayload = decodeGrpc(rawBytes);
     const preferredHosts = getPreferredHosts();
 
@@ -58,6 +66,7 @@ async function handleResponse() {
     const reply = PlayViewUniteReply.fromBinary(protoPayload);
 
     let modifiedCount = 0;
+    let selectedMainHost = "";
 
     // 2. 遍历流媒体列表，应用【哔哩速度】核心调度算法
     if (reply?.vodInfo?.streamList && Array.isArray(reply.vodInfo.streamList)) {
@@ -67,6 +76,9 @@ async function handleResponse() {
           const optimized = optimizeStreamUrls(dash.baseUrl, dash.backupUrl || [], preferredHosts);
           dash.baseUrl = optimized.baseUrl;
           dash.backupUrl = optimized.backupUrls;
+          if (!selectedMainHost && optimized.baseUrl) {
+            try { selectedMainHost = new URL(optimized.baseUrl).hostname; } catch {}
+          }
           modifiedCount++;
         } else if (stream.content?.oneofKind === "segmentVideo" && stream.content.segmentVideo) {
           const segVideo = stream.content.segmentVideo;
@@ -75,6 +87,9 @@ async function handleResponse() {
               const optimized = optimizeStreamUrls(seg.url, seg.backupUrl || [], preferredHosts);
               seg.url = optimized.baseUrl;
               seg.backupUrl = optimized.backupUrls;
+              if (!selectedMainHost && optimized.baseUrl) {
+                try { selectedMainHost = new URL(optimized.baseUrl).hostname; } catch {}
+              }
               modifiedCount++;
             }
           }
@@ -83,15 +98,18 @@ async function handleResponse() {
     }
 
     if (modifiedCount === 0) {
+      console.log("[哔哩速度] 响应中未找到可优化的视频流");
       $done({});
       return;
     }
+
+    console.log(`[哔哩速度] 成功优化 ${modifiedCount} 条流，主节点提升为: ${selectedMainHost || "优质官方CDN"}`);
 
     // 3. 重新序列化 Protobuf 并封装 gRPC 帧头
     const newProto = PlayViewUniteReply.toBinary(reply);
     const finalGrpcBytes = encodeGrpc(newProto);
 
-    $done({ bodyBytes: finalGrpcBytes });
+    $done({ body: finalGrpcBytes, bodyBytes: finalGrpcBytes });
   } catch (err) {
     // 容灾熔断：解析异常时直接放行原包，绝不阻断视频播放
     console.log(`[哔哩速度] 选路处理跳过或异常: ${err}`);
