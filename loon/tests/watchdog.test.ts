@@ -5,71 +5,101 @@ interface VideoSession {
   updatedAt: number;
 }
 
-function processWatchdogRotation(session: VideoSession, requestedHost: string): { action: "promoted" | "rewritten" | "pass"; target?: string } {
-  if (!session || !Array.isArray(session.hosts) || session.hosts.length === 0) {
+function isThrottledOrBadHost(host: string): boolean {
+  const h = host.toLowerCase();
+  return (
+    h.endsWith(".akamaized.net") ||
+    h.includes("akam") ||
+    h.endsWith(".mcdn.bilivideo.cn") ||
+    h.includes("mcdn")
+  );
+}
+
+function processWatchdogRescue(
+  session: VideoSession | undefined,
+  requestedHost: string,
+  preferredRanking: string[] = []
+): { action: "rescued" | "pass"; target?: string } {
+  const current = requestedHost.toLowerCase().trim();
+
+  // 1. 如果请求的是正常高速 bilivideo 节点，直接放行，绝不干扰播放器并发预加载，彻底杜绝乒乓抖动
+  if (!isThrottledOrBadHost(current)) {
     return { action: "pass" };
   }
 
-  const current = requestedHost.toLowerCase().trim();
-  const primaryHost = session.hosts[0].toLowerCase().trim();
-
-  // 情况 A: 客户端正在请求 backup 列表中的节点（说明原首选节点失败或被播放器放弃）
-  const backupIndex = session.hosts.findIndex((h, idx) => idx > 0 && h.toLowerCase() === current);
-  if (backupIndex > 0) {
-    const failedPrimary = session.hosts.shift()!;
-    session.hosts.push(failedPrimary);
-    const newPrimaryIndex = session.hosts.findIndex((h) => h.toLowerCase() === current);
-    if (newPrimaryIndex > 0) {
-      const [promoted] = session.hosts.splice(newPrimaryIndex, 1);
-      session.hosts.unshift(promoted);
-    }
-    session.updatedAt = Date.now();
-    return { action: "promoted", target: session.hosts[0] };
+  // 2. 只有受限节点 (Akamai / PCDN) 才触发救援重写
+  let targetHost = "";
+  if (session && Array.isArray(session.hosts)) {
+    targetHost = session.hosts.find((h) => !isThrottledOrBadHost(h)) || "";
+  }
+  if (!targetHost && preferredRanking.length > 0) {
+    targetHost = preferredRanking.find((h) => !isThrottledOrBadHost(h)) || "";
+  }
+  if (!targetHost) {
+    targetHost = "upos-sz-mirrorcosov.bilivideo.com";
   }
 
-  // 情况 B: 客户端还在请求已经被降权的节点
-  if (current && primaryHost && current !== primaryHost) {
-    return { action: "rewritten", target: session.hosts[0] };
-  }
-
-  return { action: "pass" };
+  return { action: "rescued", target: targetHost };
 }
 
-describe("Bilibili Speed Watchdog (听诊器) Auto-Rotation", () => {
-  it("should detect when player falls back to backup node, demote failed primary, and lock in new primary", () => {
+describe("Bilibili Speed Watchdog (听诊救援) Logic", () => {
+  it("should pass healthy nodes without flapping or altering order during concurrent prefetch", () => {
     const session: VideoSession = {
       hosts: [
-        "cn-hk-eq-01-01.bilivideo.com",
         "upos-sz-mirrorcosov.bilivideo.com",
         "upos-sz-mirroraliov.bilivideo.com",
+        "cn-hk-eq-01-01.bilivideo.com",
       ],
       updatedAt: 1000,
     };
 
-    // Client requests backup node (cosov) because primary (hk-eq) failed
-    const result = processWatchdogRotation(session, "upos-sz-mirrorcosov.bilivideo.com");
-    expect(result.action).toBe("promoted");
-    expect(result.target).toBe("upos-sz-mirrorcosov.bilivideo.com");
+    // Client prefetches from backup node (aliov) while primary (cosov) is also active
+    const aliovRes = processWatchdogRescue(session, "upos-sz-mirroraliov.bilivideo.com");
+    expect(aliovRes.action).toBe("pass");
 
-    // cosov should now be #1
+    // Client fetches from primary node (cosov)
+    const cosovRes = processWatchdogRescue(session, "upos-sz-mirrorcosov.bilivideo.com");
+    expect(cosovRes.action).toBe("pass");
+
+    // Session order remains strictly stable — zero flapping!
     expect(session.hosts[0]).toBe("upos-sz-mirrorcosov.bilivideo.com");
-    // hk-eq should now be at the tail
-    expect(session.hosts[2]).toBe("cn-hk-eq-01-01.bilivideo.com");
+    expect(session.hosts[1]).toBe("upos-sz-mirroraliov.bilivideo.com");
   });
 
-  it("should rewrite requests targeting old demoted nodes to the active primary", () => {
+  it("should instantly rescue throttled Akamai requests to the healthy session host", () => {
     const session: VideoSession = {
-      hosts: ["upos-sz-mirrorcosov.bilivideo.com", "cn-hk-eq-01-01.bilivideo.com"],
+      hosts: [
+        "upos-sz-mirrorcosov.bilivideo.com",
+        "upos-sz-mirroraliov.bilivideo.com",
+        "upos-hz-mirrorakam.akamaized.net",
+      ],
       updatedAt: 1000,
     };
 
-    // If client requests an unlisted/old host not in backups, rewrite to primary
-    const result = processWatchdogRotation(session, "upos-sz-mirrorali.bilivideo.com");
-    expect(result.action).toBe("rewritten");
-    expect(result.target).toBe("upos-sz-mirrorcosov.bilivideo.com");
+    // Client requests slow Akamai node
+    const res = processWatchdogRescue(session, "upos-hz-mirrorakam.akamaized.net");
+    expect(res.action).toBe("rescued");
+    expect(res.target).toBe("upos-sz-mirrorcosov.bilivideo.com");
+  });
 
-    // When client requests current primary, pass through with 0 delay
-    const pass = processWatchdogRotation(session, "upos-sz-mirrorcosov.bilivideo.com");
-    expect(pass.action).toBe("pass");
+  it("should rescue Akamai request using preferred ranking or default fallback when session is missing", () => {
+    const res1 = processWatchdogRescue(undefined, "upos-hz-mirrorakam.akamaized.net", ["upos-sz-mirroraliov.bilivideo.com"]);
+    expect(res1.action).toBe("rescued");
+    expect(res1.target).toBe("upos-sz-mirroraliov.bilivideo.com");
+
+    const res2 = processWatchdogRescue(undefined, "upos-hz-mirrorakam.akamaized.net", []);
+    expect(res2.action).toBe("rescued");
+    expect(res2.target).toBe("upos-sz-mirrorcosov.bilivideo.com");
+  });
+
+  it("should rescue PCDN / MCDN requests to a healthy UPOS node", () => {
+    const session: VideoSession = {
+      hosts: ["upos-sz-mirrorcosov.bilivideo.com"],
+      updatedAt: 1000,
+    };
+
+    const res = processWatchdogRescue(session, "node-1.mcdn.bilivideo.cn");
+    expect(res.action).toBe("rescued");
+    expect(res.target).toBe("upos-sz-mirrorcosov.bilivideo.com");
   });
 });
