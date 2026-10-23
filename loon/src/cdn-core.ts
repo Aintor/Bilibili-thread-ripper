@@ -220,15 +220,13 @@ export function optimizeStreamUrls(
     }
   }
 
-  // 7. 组合最终节点池 (普通原生节点优先，高速合成次之，Akamai 与 Relay 兜底)
-  // 注意：海外 Akamai (*.akamaized.net) 节点在亚太地区严重限速丢包，切勿作为首选主节点
+  // 7. 组合最终节点池 (普通原生节点优先，高速合成次之，彻底剔除 Akamai 与 PCDN 污染)
+  // 注意：海外 Akamai (*.akamaized.net) 节点在亚太地区严重限速丢包，彻底排除，杜绝客户端备用链路拉取导致缓冲卡死
   const regularOriginals = allowedOriginals.filter((u) => !isAkamaiUrl(u));
-  const akamaiOriginals = allowedOriginals.filter(isAkamaiUrl);
   const relays = cleanOriginals.length > 0 ? [] : allOriginals;
   const combined = Array.from(new Set([
     ...regularOriginals,
     ...syntheticList,
-    ...akamaiOriginals,
     ...relays
   ]));
 

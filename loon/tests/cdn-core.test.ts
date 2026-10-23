@@ -268,7 +268,7 @@ describe("CDN Core Algorithms Ported from 哔哩速度", () => {
     expect(mainlandOpt.baseUrl).toContain("upos-sz-mirrorali.bilivideo.com");
   });
 
-  it("should demote slow Akamai nodes to tail and promote high-speed UPOS overseas nodes to primary", async () => {
+  it("should demote slow Akamai nodes and promote high-speed UPOS overseas nodes to primary without Akamai fallback", async () => {
     const { optimizeStreamUrls } = await import("../src/cdn-core");
     const akamaiPrimary = "https://upos-hz-mirrorakam.akamaized.net/upgcxcode/sample.m4s?token=aka";
     const backupUrls = ["https://upos-sz-mirrorcosov.bilivideo.com/upgcxcode/sample.m4s?token=aka"];
@@ -276,7 +276,7 @@ describe("CDN Core Algorithms Ported from 哔哩速度", () => {
     const optimized = optimizeStreamUrls(akamaiPrimary, backupUrls, [], "overseas");
     // Main node MUST be high-speed UPOS (mirrorcosov), NOT throttled Akamai
     expect(optimized.baseUrl).toContain("upos-sz-mirrorcosov.bilivideo.com");
-    // Akamai must be pushed to backupUrls
-    expect(optimized.backupUrls.some((u) => u.includes("akamaized.net"))).toBe(true);
+    // Akamai must be completely excluded from playlist to prevent backup prefetch stalls
+    expect(optimized.backupUrls.some((u) => u.includes("akamaized.net"))).toBe(false);
   });
 });

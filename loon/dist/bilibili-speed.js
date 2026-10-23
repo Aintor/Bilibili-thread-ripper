@@ -2400,12 +2400,10 @@ function optimizeStreamUrls(primary, backup = [], preferredOrder = [], forcedMod
     }
   }
   const regularOriginals = allowedOriginals.filter((u) => !isAkamaiUrl(u));
-  const akamaiOriginals = allowedOriginals.filter(isAkamaiUrl);
   const relays = cleanOriginals.length > 0 ? [] : allOriginals;
   const combined = Array.from(new Set([
     ...regularOriginals,
     ...syntheticList,
-    ...akamaiOriginals,
     ...relays
   ]));
   let rankedUrls;

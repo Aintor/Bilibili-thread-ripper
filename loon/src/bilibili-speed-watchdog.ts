@@ -107,9 +107,17 @@
       const newUrl = new URL($request.url);
       newUrl.hostname = targetHost;
       newUrl.port = "";
-      console.log(`[哔哩速度·听诊救援] 拦截到受限节点分片请求: ${currentHost}，已极速无感救援重写至: ${targetHost}`);
+      console.log(`[哔哩速度·听诊救援] 拦截到受限节点分片请求: ${currentHost}，已 302 重定向救援至: ${targetHost}`);
       if (typeof $done === "function") {
-        $done({ url: newUrl.href });
+        $done({
+          response: {
+            status: 302,
+            headers: {
+              Location: newUrl.href,
+              "Access-Control-Allow-Origin": "*",
+            },
+          },
+        });
         return;
       }
     } catch {}

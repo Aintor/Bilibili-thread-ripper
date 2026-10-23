@@ -19,7 +19,7 @@ function processWatchdogRescue(
   session: VideoSession | undefined,
   requestedHost: string,
   preferredRanking: string[] = []
-): { action: "rescued" | "pass"; target?: string } {
+): { action: "rescued" | "pass"; status?: number; target?: string } {
   const current = requestedHost.toLowerCase().trim();
 
   // 1. 如果请求的是正常高速 bilivideo 节点，直接放行，绝不干扰播放器并发预加载，彻底杜绝乒乓抖动
@@ -27,7 +27,7 @@ function processWatchdogRescue(
     return { action: "pass" };
   }
 
-  // 2. 只有受限节点 (Akamai / PCDN) 才触发救援重写
+  // 2. 只有受限节点 (Akamai / PCDN) 才触发 302 救援重定向
   let targetHost = "";
   if (session && Array.isArray(session.hosts)) {
     targetHost = session.hosts.find((h) => !isThrottledOrBadHost(h)) || "";
@@ -39,7 +39,7 @@ function processWatchdogRescue(
     targetHost = "upos-sz-mirrorcosov.bilivideo.com";
   }
 
-  return { action: "rescued", target: targetHost };
+  return { action: "rescued", status: 302, target: targetHost };
 }
 
 describe("Bilibili Speed Watchdog (听诊救援) Logic", () => {
@@ -79,16 +79,19 @@ describe("Bilibili Speed Watchdog (听诊救援) Logic", () => {
     // Client requests slow Akamai node
     const res = processWatchdogRescue(session, "upos-hz-mirrorakam.akamaized.net");
     expect(res.action).toBe("rescued");
+    expect(res.status).toBe(302);
     expect(res.target).toBe("upos-sz-mirrorcosov.bilivideo.com");
   });
 
   it("should rescue Akamai request using preferred ranking or default fallback when session is missing", () => {
     const res1 = processWatchdogRescue(undefined, "upos-hz-mirrorakam.akamaized.net", ["upos-sz-mirroraliov.bilivideo.com"]);
     expect(res1.action).toBe("rescued");
+    expect(res1.status).toBe(302);
     expect(res1.target).toBe("upos-sz-mirroraliov.bilivideo.com");
 
     const res2 = processWatchdogRescue(undefined, "upos-hz-mirrorakam.akamaized.net", []);
     expect(res2.action).toBe("rescued");
+    expect(res2.status).toBe(302);
     expect(res2.target).toBe("upos-sz-mirrorcosov.bilivideo.com");
   });
 
@@ -100,6 +103,7 @@ describe("Bilibili Speed Watchdog (听诊救援) Logic", () => {
 
     const res = processWatchdogRescue(session, "node-1.mcdn.bilivideo.cn");
     expect(res.action).toBe("rescued");
+    expect(res.status).toBe(302);
     expect(res.target).toBe("upos-sz-mirrorcosov.bilivideo.com");
   });
 });
