@@ -91,9 +91,9 @@ function getRawBytes(): Uint8Array | null {
 function getPluginMode(): "auto" | "overseas" | "mainland" {
   try {
     if (typeof $argument === "string" && $argument.trim()) {
-      const match = $argument.match(/mode=([a-z]+)/i);
-      const mode = (match ? match[1] : $argument).trim().toLowerCase();
-      if (mode === "overseas" || mode === "mainland" || mode === "auto") return mode as "auto" | "overseas" | "mainland";
+      const match = $argument.match(/(?:mode=)?([a-z]+)/i);
+      const val = (match ? match[1] : $argument).trim().toLowerCase();
+      if (val === "overseas" || val === "mainland") return val;
     }
   } catch (_e) {}
   return "auto";

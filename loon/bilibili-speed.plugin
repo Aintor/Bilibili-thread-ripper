@@ -1,27 +1,24 @@
 #!name = 哔哩速度 (Bilibili Speed)
-#!desc = 移植「哔哩速度」核心架构：PlayViewUnite 智能选路、PCDN 彻底清洗、Donor 跨节点合成、三档模式调度（不限/大陆/海外）、听诊器动态重写与异常轮换。
+#!desc = 移植「哔哩速度」核心架构：PlayViewUnite 智能选路、PCDN 彻底清洗、Donor 跨节点合成、三档模式调度（不限/大陆/海外）、听诊器动态重写与自适应切流。
 #!author = Aintor
 #!icon = https://raw.githubusercontent.com/Aintor/Bilibili-thread-ripper/main/icons/icon-128.png
 #!homepage = https://github.com/Aintor/Bilibili-thread-ripper
 #!system = iOS
 #!system_version = 15
-#!date = 2026-10-23 22:55:00
-#!version = 1.0.7
+#!date = 2026-10-23 23:10:00
+#!version = 1.0.8
 
 [Argument]
 mode = select, "auto", "mainland", "overseas", tag = CDN调度模式, desc = "auto: 不限(全域纯测速) | mainland: 大陆独占 | overseas: 海外独占"
 
 [Script]
 # 1. 核心选路：拦截 B 站手机客户端 gRPC 播放响应，动态注入最优 CDN 矩阵并彻底拔除 PCDN
-http-response ^https?:\/\/(?:grpc|app)\.(?:biliapi\.net|bilibili\.com)\/(?:bilibili\.app\.playerunite\.v1\.Player\/PlayViewUnite|bilibili\.pgc\.gateway\.player\.v2\.PlayURL\/PlayView|bilibili\.app\.playurl\.v1\.PlayURL\/PlayView) script-path=https://raw.githubusercontent.com/Aintor/Bilibili-thread-ripper/main/loon/dist/bilibili-speed.js, requires-body=true, binary-body-mode=true, argument={mode}, timeout=10, tag=哔哩速度 · 播放选路
+http-response ^https?:\/\/(?:grpc|app)\.(?:biliapi\.net|bilibili\.com)\/(?:bilibili\.app\.playerunite\.v1\.Player\/PlayViewUnite|bilibili\.pgc\.gateway\.player\.v2\.PlayURL\/PlayView|bilibili\.app\.playurl\.v1\.PlayURL\/PlayView) script-path=https://raw.githubusercontent.com/Aintor/Bilibili-thread-ripper/main/loon/dist/bilibili-speed.js, requires-body=true, binary-body-mode=true, argument=${mode}, timeout=10, tag=哔哩速度 · 播放选路
 
 # 2. 听诊器分片路由：分片拉取时自动路由至当前顺位第一节点 (若前序节点受罚则自动无感切流)
 http-request ^https?:\/\/[^\/]*bilivideo\.(?:com|cn)\/(?:upgcxcode|gotcha)\/ script-path=https://raw.githubusercontent.com/Aintor/Bilibili-thread-ripper/main/loon/dist/bilibili-speed-watchdog.js, requires-body=false, tag=哔哩速度 · 听诊重写
 
-# 3. 听诊器分片监控：监控分片首包响应，若遇 4xx/5xx 异常立即移至队尾降权轮换
-http-response ^https?:\/\/[^\/]*bilivideo\.(?:com|cn)\/(?:upgcxcode|gotcha)\/ script-path=https://raw.githubusercontent.com/Aintor/Bilibili-thread-ripper/main/loon/dist/bilibili-speed-watchdog.js, requires-body=false, tag=哔哩速度 · 听诊监控
-
-# 4. 异步探针：定期在后台测速阿里/华为/腾讯/海外等主流 CDN 往返延迟，存入本地内存供起播 0 毫秒无感读取 (可在 Loon 手动点击立即运行)
+# 3. 异步探针：定期在后台测速阿里/华为/腾讯/海外等主流 CDN 往返延迟，存入本地内存供起播 0 毫秒无感读取 (可在 Loon 手动点击立即运行)
 cron "*/15 * * * *" script-path=https://raw.githubusercontent.com/Aintor/Bilibili-thread-ripper/main/loon/dist/bilibili-speed-probe.js, timeout=10, tag=哔哩速度 · CDN测速探针
 
 [MITM]

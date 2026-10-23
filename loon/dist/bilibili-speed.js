@@ -6064,10 +6064,10 @@ function getRawBytes() {
 function getPluginMode() {
   try {
     if (typeof $argument === "string" && $argument.trim()) {
-      const match = $argument.match(/mode=([a-z]+)/i);
-      const mode = (match ? match[1] : $argument).trim().toLowerCase();
-      if (mode === "overseas" || mode === "mainland" || mode === "auto")
-        return mode;
+      const match = $argument.match(/(?:mode=)?([a-z]+)/i);
+      const val = (match ? match[1] : $argument).trim().toLowerCase();
+      if (val === "overseas" || val === "mainland")
+        return val;
     }
   } catch (_e) {}
   return "auto";
