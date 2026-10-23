@@ -2399,8 +2399,15 @@ function optimizeStreamUrls(primary, backup = [], preferredOrder = [], forcedMod
       syntheticList.push(syn);
     }
   }
+  const regularOriginals = allowedOriginals.filter((u) => !isAkamaiUrl(u));
+  const akamaiOriginals = allowedOriginals.filter(isAkamaiUrl);
   const relays = cleanOriginals.length > 0 ? [] : allOriginals;
-  const combined = Array.from(new Set([...allowedOriginals, ...syntheticList, ...relays]));
+  const combined = Array.from(new Set([
+    ...regularOriginals,
+    ...syntheticList,
+    ...akamaiOriginals,
+    ...relays
+  ]));
   let rankedUrls;
   if (preferredOrder && preferredOrder.length > 0) {
     const pref = preferredOrder.map((h) => h.toLowerCase().trim());

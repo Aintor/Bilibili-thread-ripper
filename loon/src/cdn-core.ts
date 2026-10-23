@@ -220,9 +220,17 @@ export function optimizeStreamUrls(
     }
   }
 
-  // 7. 组合最终节点池：[...allowedOriginals, ...synthetic, ...relays]
+  // 7. 组合最终节点池 (普通原生节点优先，高速合成次之，Akamai 与 Relay 兜底)
+  // 注意：海外 Akamai (*.akamaized.net) 节点在亚太地区严重限速丢包，切勿作为首选主节点
+  const regularOriginals = allowedOriginals.filter((u) => !isAkamaiUrl(u));
+  const akamaiOriginals = allowedOriginals.filter(isAkamaiUrl);
   const relays = cleanOriginals.length > 0 ? [] : allOriginals;
-  const combined = Array.from(new Set([...allowedOriginals, ...syntheticList, ...relays]));
+  const combined = Array.from(new Set([
+    ...regularOriginals,
+    ...syntheticList,
+    ...akamaiOriginals,
+    ...relays
+  ]));
 
   // 8. 测速优先重排：若已有测速榜单，将实测最快的节点推向最前 (保持同节点下 allowedOriginals 优先)
   let rankedUrls: string[];
