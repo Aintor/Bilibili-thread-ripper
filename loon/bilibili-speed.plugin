@@ -5,8 +5,8 @@
 #!homepage = https://github.com/Aintor/Bilibili-thread-ripper
 #!system = iOS
 #!system_version = 15
-#!date = 2026-10-23 23:10:00
-#!version = 1.0.8
+#!date = 2026-10-23 23:48:00
+#!version = 1.0.9
 
 [Argument]
 mode = select, "auto", "mainland", "overseas", tag = CDN调度模式, desc = "auto: 不限(全域纯测速) | mainland: 大陆独占 | overseas: 海外独占"
