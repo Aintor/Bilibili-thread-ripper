@@ -2271,13 +2271,14 @@ var MAINLAND_HOSTS = Object.freeze([
   "upos-sz-mirrorbos.bilivideo.com",
   "upos-sz-mirrorbd.bilivideo.com",
   "upos-sz-mirror14b.bilivideo.com",
+  "upos-sz-estgoss.bilivideo.com",
   "upos-sz-mirrorcoso1.bilivideo.com"
 ]);
 var OVERSEAS_HOSTS = Object.freeze([
   "cn-hk-eq-01-01.bilivideo.com",
   "cn-hk-eq-01-03.bilivideo.com",
-  "upos-sz-mirrorcosov.bilivideo.com",
-  "upos-sz-mirroraliov.bilivideo.com"
+  "upos-sz-mirroraliov.bilivideo.com",
+  "upos-sz-mirrorcosov.bilivideo.com"
 ]);
 var DEFAULT_PRIORITY_HOSTS = Object.freeze([
   "upos-sz-mirrorali.bilivideo.com",
@@ -2287,6 +2288,22 @@ var DEFAULT_PRIORITY_HOSTS = Object.freeze([
   "cn-hk-eq-01-01.bilivideo.com",
   "upos-sz-mirrorcosov.bilivideo.com"
 ]);
+var OVERSEAS_PRIORITY_HOSTS = Object.freeze([
+  "cn-hk-eq-01-01.bilivideo.com",
+  "cn-hk-eq-01-03.bilivideo.com",
+  "upos-sz-mirroraliov.bilivideo.com",
+  "upos-sz-mirrorcosov.bilivideo.com"
+]);
+function isOverseasContext(urls) {
+  return urls.some((raw) => {
+    try {
+      const host = new URL(raw).hostname.toLowerCase();
+      return host.endsWith(".akamaized.net") || host.includes("gotcha") || host.includes("mirroraliov") || host.includes("mirrorcosov") || host.includes("mirrorakam") || host.includes("cn-hk-eq") || host.includes("-ov-") || host.includes("_ov_") || host.includes(".ov.");
+    } catch {
+      return false;
+    }
+  });
+}
 function isAkamaiUrl(value) {
   try {
     return new URL(value).hostname.toLowerCase().endsWith(".akamaized.net");
@@ -2333,10 +2350,11 @@ function swapOrdinaryHost(rawUrl, targetHost, allowAkamai = false) {
     return null;
   }
 }
-function optimizeStreamUrls(primary, backup = [], preferredOrder = []) {
+function optimizeStreamUrls(primary, backup = [], preferredOrder = [], forcedMode = "auto") {
   const allOriginals = [primary, ...backup].filter(Boolean);
   const cleanOriginals = allOriginals.filter((url) => !isRelayUrl(url));
   const fallbackList = cleanOriginals.length > 0 ? cleanOriginals : allOriginals;
+  const isOverseas = forcedMode === "overseas" || forcedMode !== "mainland" && isOverseasContext(fallbackList);
   const uposDonor = fallbackList.find(isUposUrl);
   if (!uposDonor && fallbackList.some(isGotchaUrl)) {
     return {
@@ -2348,8 +2366,15 @@ function optimizeStreamUrls(primary, backup = [], preferredOrder = []) {
   if (!donor) {
     return { baseUrl: primary, backupUrls: backup };
   }
-  const priorityList = preferredOrder && preferredOrder.length > 0 ? preferredOrder : DEFAULT_PRIORITY_HOSTS;
-  const targetHosts = Array.from(new Set([...priorityList, ...MAINLAND_HOSTS, ...OVERSEAS_HOSTS]));
+  let priorityList;
+  if (preferredOrder && preferredOrder.length > 0) {
+    priorityList = preferredOrder;
+  } else if (isOverseas) {
+    priorityList = OVERSEAS_PRIORITY_HOSTS;
+  } else {
+    priorityList = DEFAULT_PRIORITY_HOSTS;
+  }
+  const targetHosts = isOverseas ? Array.from(new Set([...priorityList, ...OVERSEAS_HOSTS, ...MAINLAND_HOSTS])) : Array.from(new Set([...priorityList, ...MAINLAND_HOSTS, ...OVERSEAS_HOSTS]));
   const syntheticList = [];
   for (const host of targetHosts) {
     const syn = swapOrdinaryHost(donor, host, isAkamaiUrl(donor));
@@ -2357,7 +2382,18 @@ function optimizeStreamUrls(primary, backup = [], preferredOrder = []) {
       syntheticList.push(syn);
     }
   }
-  const combined = Array.from(new Set([...syntheticList, ...fallbackList]));
+  let combined;
+  if (isOverseas) {
+    const validOverseasOriginals = fallbackList.filter((u) => isOverseasContext([u]));
+    combined = Array.from(new Set([
+      ...syntheticList.filter((u) => isOverseasContext([u])),
+      ...validOverseasOriginals,
+      ...syntheticList,
+      ...fallbackList
+    ]));
+  } else {
+    combined = Array.from(new Set([...syntheticList, ...fallbackList]));
+  }
   if (combined.length === 0) {
     return { baseUrl: primary, backupUrls: backup };
   }
@@ -5998,6 +6034,17 @@ function getRawBytes() {
     return $response.bodyBytes;
   return null;
 }
+function getPluginMode() {
+  try {
+    if (typeof $argument === "string" && $argument.trim()) {
+      const match = $argument.match(/mode=([a-z]+)/i);
+      const mode = (match ? match[1] : $argument).trim().toLowerCase();
+      if (mode === "overseas" || mode === "mainland")
+        return mode;
+    }
+  } catch (_e) {}
+  return "auto";
+}
 function getPreferredHosts() {
   try {
     const raw = typeof $persistentStore !== "undefined" ? $persistentStore.read("bilibili_speed_cdn_ranking") : null;
@@ -6019,6 +6066,7 @@ async function handleResponse() {
   try {
     const { payload, wasCompressed } = decodeGrpc(rawBytes);
     const preferredHosts = getPreferredHosts();
+    const pluginMode = getPluginMode();
     const isPlayView = typeof $request !== "undefined" && $request?.url && $request.url.includes("/PlayView") && !$request.url.includes("/PlayViewUnite");
     const reply = isPlayView ? PlayViewReply.fromBinary(payload) : PlayViewUniteReply.fromBinary(payload);
     let videoCount = 0;
@@ -6028,7 +6076,7 @@ async function handleResponse() {
       for (const stream of reply.vodInfo.streamList) {
         if (stream.content?.oneofKind === "dashVideo" && stream.content.dashVideo) {
           const dash = stream.content.dashVideo;
-          const optimized = optimizeStreamUrls(dash.baseUrl, dash.backupUrl || [], preferredHosts);
+          const optimized = optimizeStreamUrls(dash.baseUrl, dash.backupUrl || [], preferredHosts, pluginMode);
           dash.baseUrl = optimized.baseUrl;
           dash.backupUrl = optimized.backupUrls;
           if (!selectedMainHost && optimized.baseUrl) {
@@ -6041,7 +6089,7 @@ async function handleResponse() {
           const segVideo = stream.content.segmentVideo;
           if (Array.isArray(segVideo.segment)) {
             for (const seg of segVideo.segment) {
-              const optimized = optimizeStreamUrls(seg.url, seg.backupUrl || [], preferredHosts);
+              const optimized = optimizeStreamUrls(seg.url, seg.backupUrl || [], preferredHosts, pluginMode);
               seg.url = optimized.baseUrl;
               seg.backupUrl = optimized.backupUrls;
               if (!selectedMainHost && optimized.baseUrl) {
@@ -6058,7 +6106,7 @@ async function handleResponse() {
     if (reply?.vodInfo?.dashAudio && Array.isArray(reply.vodInfo.dashAudio)) {
       for (const audio of reply.vodInfo.dashAudio) {
         if (audio.baseUrl) {
-          const optimized = optimizeStreamUrls(audio.baseUrl, audio.backupUrl || [], preferredHosts);
+          const optimized = optimizeStreamUrls(audio.baseUrl, audio.backupUrl || [], preferredHosts, pluginMode);
           audio.baseUrl = optimized.baseUrl;
           audio.backupUrl = optimized.backupUrls;
           audioCount++;
@@ -6068,7 +6116,7 @@ async function handleResponse() {
     if (reply?.vodInfo?.dolby?.audio && Array.isArray(reply.vodInfo.dolby.audio)) {
       for (const audio of reply.vodInfo.dolby.audio) {
         if (audio.baseUrl) {
-          const optimized = optimizeStreamUrls(audio.baseUrl, audio.backupUrl || [], preferredHosts);
+          const optimized = optimizeStreamUrls(audio.baseUrl, audio.backupUrl || [], preferredHosts, pluginMode);
           audio.baseUrl = optimized.baseUrl;
           audio.backupUrl = optimized.backupUrls;
           audioCount++;
@@ -6077,7 +6125,7 @@ async function handleResponse() {
     }
     if (reply?.vodInfo?.lossLessItem?.audio && reply.vodInfo.lossLessItem.audio.baseUrl) {
       const audio = reply.vodInfo.lossLessItem.audio;
-      const optimized = optimizeStreamUrls(audio.baseUrl, audio.backupUrl || [], preferredHosts);
+      const optimized = optimizeStreamUrls(audio.baseUrl, audio.backupUrl || [], preferredHosts, pluginMode);
       audio.baseUrl = optimized.baseUrl;
       audio.backupUrl = optimized.backupUrls;
       audioCount++;
@@ -6088,7 +6136,8 @@ async function handleResponse() {
       $done({});
       return;
     }
-    console.log(`[哔哩速度] 成功优化 ${videoCount} 条视频流 + ${audioCount} 条音频流，主节点提升为: ${selectedMainHost || "优质官方CDN"}`);
+    const modeLabel = pluginMode === "overseas" ? "海外强制" : pluginMode === "mainland" ? "国内强制" : "智能自适应";
+    console.log(`[哔哩速度] 成功优化 ${videoCount} 条视频流 + ${audioCount} 条音频流 (${modeLabel})，主节点提升为: ${selectedMainHost || "优质官方CDN"}`);
     const newProto = isPlayView ? PlayViewReply.toBinary(reply) : PlayViewUniteReply.toBinary(reply);
     const finalGrpcBytes = encodeGrpc(newProto, wasCompressed);
     $done({ body: finalGrpcBytes, bodyBytes: finalGrpcBytes });

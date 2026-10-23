@@ -10,14 +10,15 @@ export const MAINLAND_HOSTS: readonly string[] = Object.freeze([
   "upos-sz-mirrorbos.bilivideo.com",
   "upos-sz-mirrorbd.bilivideo.com",
   "upos-sz-mirror14b.bilivideo.com",
+  "upos-sz-estgoss.bilivideo.com",
   "upos-sz-mirrorcoso1.bilivideo.com"
 ]);
 
 export const OVERSEAS_HOSTS: readonly string[] = Object.freeze([
   "cn-hk-eq-01-01.bilivideo.com",
   "cn-hk-eq-01-03.bilivideo.com",
-  "upos-sz-mirrorcosov.bilivideo.com",
-  "upos-sz-mirroraliov.bilivideo.com"
+  "upos-sz-mirroraliov.bilivideo.com",
+  "upos-sz-mirrorcosov.bilivideo.com"
 ]);
 
 export const DEFAULT_PRIORITY_HOSTS: readonly string[] = Object.freeze([
@@ -28,6 +29,37 @@ export const DEFAULT_PRIORITY_HOSTS: readonly string[] = Object.freeze([
   "cn-hk-eq-01-01.bilivideo.com",
   "upos-sz-mirrorcosov.bilivideo.com"
 ]);
+
+export const OVERSEAS_PRIORITY_HOSTS: readonly string[] = Object.freeze([
+  "cn-hk-eq-01-01.bilivideo.com",
+  "cn-hk-eq-01-03.bilivideo.com",
+  "upos-sz-mirroraliov.bilivideo.com",
+  "upos-sz-mirrorcosov.bilivideo.com"
+]);
+
+/**
+ * 判断是否为海外流媒体特征 (由 B 站官方调度器分发的海外节点特征)
+ */
+export function isOverseasContext(urls: string[]): boolean {
+  return urls.some((raw) => {
+    try {
+      const host = new URL(raw).hostname.toLowerCase();
+      return (
+        host.endsWith(".akamaized.net") ||
+        host.includes("gotcha") ||
+        host.includes("mirroraliov") ||
+        host.includes("mirrorcosov") ||
+        host.includes("mirrorakam") ||
+        host.includes("cn-hk-eq") ||
+        host.includes("-ov-") ||
+        host.includes("_ov_") ||
+        host.includes(".ov.")
+      );
+    } catch {
+      return false;
+    }
+  });
+}
 
 /**
  * 判断是否为海外 Akamai CDN
@@ -116,7 +148,8 @@ export interface OptimizedStream {
 export function optimizeStreamUrls(
   primary: string,
   backup: string[] = [],
-  preferredOrder: string[] = []
+  preferredOrder: string[] = [],
+  forcedMode: "auto" | "overseas" | "mainland" = "auto"
 ): OptimizedStream {
   const allOriginals = [primary, ...backup].filter(Boolean);
   
@@ -124,7 +157,12 @@ export function optimizeStreamUrls(
   const cleanOriginals = allOriginals.filter((url) => !isRelayUrl(url));
   const fallbackList = cleanOriginals.length > 0 ? cleanOriginals : allOriginals;
 
-  // 2. 检查是否有合法的 UPOS 供体
+  // 2. 检测海外流媒体上下文 (自动根据 B 站下发的节点特征判定，或由参数强制指定)
+  const isOverseas =
+    forcedMode === "overseas" ||
+    (forcedMode !== "mainland" && isOverseasContext(fallbackList));
+
+  // 3. 检查是否有合法的 UPOS 供体
   const uposDonor = fallbackList.find(isUposUrl);
 
   // 如果原本全是 Gotcha 海外专用流且没有任何 UPOS 节点，切勿强行切为大陆 UPOS（会触发 403 惩罚导致起播严重卡顿）
@@ -136,20 +174,27 @@ export function optimizeStreamUrls(
     };
   }
 
-  // 3. 寻找 Donor 签名供体 (优先非 Akamai 的 UPOS 节点)
+  // 4. 寻找 Donor 签名供体 (优先非 Akamai 的 UPOS 节点)
   const donor = uposDonor || fallbackList.find((url) => !isAkamaiUrl(url)) || fallbackList[0];
   if (!donor) {
     return { baseUrl: primary, backupUrls: backup };
   }
 
-  // 3. 确定候选 Host 清单与优先级
-  const priorityList = (preferredOrder && preferredOrder.length > 0)
-    ? preferredOrder
-    : DEFAULT_PRIORITY_HOSTS;
+  // 5. 确定候选 Host 清单与优先级 (根据环境自适应海外 vs 国内)
+  let priorityList: readonly string[];
+  if (preferredOrder && preferredOrder.length > 0) {
+    priorityList = preferredOrder;
+  } else if (isOverseas) {
+    priorityList = OVERSEAS_PRIORITY_HOSTS;
+  } else {
+    priorityList = DEFAULT_PRIORITY_HOSTS;
+  }
 
-  const targetHosts = Array.from(new Set([...priorityList, ...MAINLAND_HOSTS, ...OVERSEAS_HOSTS]));
+  const targetHosts = isOverseas
+    ? Array.from(new Set([...priorityList, ...OVERSEAS_HOSTS, ...MAINLAND_HOSTS]))
+    : Array.from(new Set([...priorityList, ...MAINLAND_HOSTS, ...OVERSEAS_HOSTS]));
 
-  // 4. 合成备选节点 URL
+  // 6. 合成备选节点 URL
   const syntheticList: string[] = [];
   for (const host of targetHosts) {
     const syn = swapOrdinaryHost(donor, host, isAkamaiUrl(donor));
@@ -158,8 +203,22 @@ export function optimizeStreamUrls(
     }
   }
 
-  // 5. 组合最终节点池 (先排实测优选的合成节点，再附带官方原始有效节点)
-  const combined = Array.from(new Set([...syntheticList, ...fallbackList]));
+  // 7. 组合最终节点池 (先排实测优选的合成节点，再附带官方原始有效节点)
+  // 海外模式下：将官方下发的高速海外节点 (如 Singapore 本地 Gotcha) 置于国内合成节点之前
+  let combined: string[];
+  if (isOverseas) {
+    const validOverseasOriginals = fallbackList.filter((u) => isOverseasContext([u]));
+    // 结构：海外合成节点 (如香港 Equinix) -> 官方海外本地节点 -> 大陆合成节点 -> 其他兜底
+    combined = Array.from(new Set([
+      ...syntheticList.filter((u) => isOverseasContext([u])),
+      ...validOverseasOriginals,
+      ...syntheticList,
+      ...fallbackList
+    ]));
+  } else {
+    combined = Array.from(new Set([...syntheticList, ...fallbackList]));
+  }
+
   if (combined.length === 0) {
     return { baseUrl: primary, backupUrls: backup };
   }

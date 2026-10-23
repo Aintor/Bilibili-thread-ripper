@@ -214,4 +214,52 @@ describe("CDN Core Algorithms Ported from 哔哩速度", () => {
     expect(decoded.vodInfo?.quality).toBe(112);
     expect(decoded.vodInfo?.dashAudio?.[0]?.baseUrl).toContain("pgc_audio.m4s");
   });
+
+  it("should automatically detect overseas environment and prioritize overseas nodes over mainland edges", async () => {
+    const { optimizeStreamUrls, isOverseasContext } = await import("../src/cdn-core");
+
+    const overseasUrls = [
+      "https://cn-hk-eq-01-01.bilivideo.com/upgcxcode/sample.m4s",
+      "https://d1--ov-gotcha05.bilivideo.com/gotcha/sample.m4s",
+      "https://upos-sz-mirroraliov.bilivideo.com/upgcxcode/sample.m4s",
+    ];
+    expect(isOverseasContext(overseasUrls)).toBe(true);
+
+    const mainlandUrls = [
+      "https://upos-sz-mirrorali.bilivideo.com/upgcxcode/sample.m4s",
+      "https://upos-sz-mirrorhw.bilivideo.com/upgcxcode/sample.m4s",
+    ];
+    expect(isOverseasContext(mainlandUrls)).toBe(false);
+
+    // When original response comes from overseas (like Singapore user seeing Gotcha or HK Equinix)
+    const rawPrimary = "https://upos-sz-mirroraliov.bilivideo.com/upgcxcode/sample.m4s?e=123&deadline=456";
+    const rawBackup = [
+      "https://d1--ov-gotcha05.bilivideo.com/gotcha/sample.m4s?e=123",
+      "https://118.228.23.25.mcdn.bilivideo.cn:4480/resource/sample.m4s" // PCDN
+    ];
+
+    const optimized = optimizeStreamUrls(rawPrimary, rawBackup, [], "auto");
+    // Main node MUST be Hong Kong Equinix or overseas UPOS, NEVER mainland China edge
+    expect(optimized.baseUrl).toContain("cn-hk-eq-01-01.bilivideo.com");
+    // Backup nodes must prioritize overseas nodes first
+    expect(optimized.backupUrls[0]).toContain("cn-hk-eq-01-03.bilivideo.com");
+    expect(optimized.backupUrls[1]).toContain("upos-sz-mirroraliov.bilivideo.com");
+    // Singapore local Gotcha node must be preserved in overseas list
+    expect(optimized.backupUrls.some(u => u.includes("d1--ov-gotcha05"))).toBe(true);
+    // PCDN must be stripped
+    expect(optimized.backupUrls.some(u => u.includes("mcdn"))).toBe(false);
+  });
+
+  it("should respect forced mode ('overseas' vs 'mainland')", async () => {
+    const { optimizeStreamUrls } = await import("../src/cdn-core");
+    const rawPrimary = "https://upos-sz-mirrorali.bilivideo.com/upgcxcode/sample.m4s";
+
+    // Even if incoming URL looks like mainland, forced 'overseas' mode puts HK / overseas nodes first
+    const overseasOpt = optimizeStreamUrls(rawPrimary, [], [], "overseas");
+    expect(overseasOpt.baseUrl).toContain("cn-hk-eq-01-01.bilivideo.com");
+
+    // Forced 'mainland' mode puts mainland nodes first
+    const mainlandOpt = optimizeStreamUrls(rawPrimary, [], [], "mainland");
+    expect(mainlandOpt.baseUrl).toContain("upos-sz-mirrorali.bilivideo.com");
+  });
 });

@@ -29,13 +29,14 @@ interface ProbeResult {
 }
 
 const CANDIDATES = [
+  "cn-hk-eq-01-01.bilivideo.com",
+  "cn-hk-eq-01-03.bilivideo.com",
+  "upos-sz-mirroraliov.bilivideo.com",
+  "upos-sz-mirrorcosov.bilivideo.com",
   "upos-sz-mirrorali.bilivideo.com",
   "upos-sz-mirrorhw.bilivideo.com",
   "upos-sz-mirrorcos.bilivideo.com",
   "upos-sz-mirror08c.bilivideo.com",
-  "cn-hk-eq-01-01.bilivideo.com",
-  "upos-sz-mirrorcosov.bilivideo.com",
-  "upos-sz-mirroraliov.bilivideo.com",
 ];
 
 function probeHost(host: string, timeoutMs = 2500): Promise<ProbeResult> {

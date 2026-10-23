@@ -19,6 +19,8 @@ declare const $response: {
   bodyBytes?: Uint8Array;
 };
 
+declare const $argument: string | undefined;
+
 declare const $done: (data: any) => void;
 declare const $persistentStore: {
   read: (key: string) => string | null;
@@ -86,6 +88,17 @@ function getRawBytes(): Uint8Array | null {
   return null;
 }
 
+function getPluginMode(): "auto" | "overseas" | "mainland" {
+  try {
+    if (typeof $argument === "string" && $argument.trim()) {
+      const match = $argument.match(/mode=([a-z]+)/i);
+      const mode = (match ? match[1] : $argument).trim().toLowerCase();
+      if (mode === "overseas" || mode === "mainland") return mode as "overseas" | "mainland";
+    }
+  } catch (_e) {}
+  return "auto";
+}
+
 function getPreferredHosts(): string[] {
   try {
     const raw = typeof $persistentStore !== "undefined" ? $persistentStore.read("bilibili_speed_cdn_ranking") : null;
@@ -108,6 +121,7 @@ async function handleResponse() {
   try {
     const { payload, wasCompressed } = decodeGrpc(rawBytes);
     const preferredHosts = getPreferredHosts();
+    const pluginMode = getPluginMode();
 
     // 1. 反序列化 gRPC Protobuf 响应 (自动适配 PlayViewUnite 与 PlayView)
     const isPlayView = typeof $request !== "undefined" && $request?.url && $request.url.includes("/PlayView") && !$request.url.includes("/PlayViewUnite");
@@ -125,7 +139,7 @@ async function handleResponse() {
       for (const stream of reply.vodInfo.streamList) {
         if (stream.content?.oneofKind === "dashVideo" && stream.content.dashVideo) {
           const dash = stream.content.dashVideo;
-          const optimized = optimizeStreamUrls(dash.baseUrl, dash.backupUrl || [], preferredHosts);
+          const optimized = optimizeStreamUrls(dash.baseUrl, dash.backupUrl || [], preferredHosts, pluginMode);
           dash.baseUrl = optimized.baseUrl;
           dash.backupUrl = optimized.backupUrls;
           if (!selectedMainHost && optimized.baseUrl) {
@@ -136,7 +150,7 @@ async function handleResponse() {
           const segVideo = stream.content.segmentVideo;
           if (Array.isArray(segVideo.segment)) {
             for (const seg of segVideo.segment) {
-              const optimized = optimizeStreamUrls(seg.url, seg.backupUrl || [], preferredHosts);
+              const optimized = optimizeStreamUrls(seg.url, seg.backupUrl || [], preferredHosts, pluginMode);
               seg.url = optimized.baseUrl;
               seg.backupUrl = optimized.backupUrls;
               if (!selectedMainHost && optimized.baseUrl) {
@@ -153,7 +167,7 @@ async function handleResponse() {
     if (reply?.vodInfo?.dashAudio && Array.isArray(reply.vodInfo.dashAudio)) {
       for (const audio of reply.vodInfo.dashAudio) {
         if (audio.baseUrl) {
-          const optimized = optimizeStreamUrls(audio.baseUrl, audio.backupUrl || [], preferredHosts);
+          const optimized = optimizeStreamUrls(audio.baseUrl, audio.backupUrl || [], preferredHosts, pluginMode);
           audio.baseUrl = optimized.baseUrl;
           audio.backupUrl = optimized.backupUrls;
           audioCount++;
@@ -165,7 +179,7 @@ async function handleResponse() {
     if (reply?.vodInfo?.dolby?.audio && Array.isArray(reply.vodInfo.dolby.audio)) {
       for (const audio of reply.vodInfo.dolby.audio) {
         if (audio.baseUrl) {
-          const optimized = optimizeStreamUrls(audio.baseUrl, audio.backupUrl || [], preferredHosts);
+          const optimized = optimizeStreamUrls(audio.baseUrl, audio.backupUrl || [], preferredHosts, pluginMode);
           audio.baseUrl = optimized.baseUrl;
           audio.backupUrl = optimized.backupUrls;
           audioCount++;
@@ -176,7 +190,7 @@ async function handleResponse() {
     // D. Hi-Res 无损伴音轨优化 (lossLessItem.audio: DashItem)
     if (reply?.vodInfo?.lossLessItem?.audio && reply.vodInfo.lossLessItem.audio.baseUrl) {
       const audio = reply.vodInfo.lossLessItem.audio;
-      const optimized = optimizeStreamUrls(audio.baseUrl, audio.backupUrl || [], preferredHosts);
+      const optimized = optimizeStreamUrls(audio.baseUrl, audio.backupUrl || [], preferredHosts, pluginMode);
       audio.baseUrl = optimized.baseUrl;
       audio.backupUrl = optimized.backupUrls;
       audioCount++;
@@ -189,7 +203,8 @@ async function handleResponse() {
       return;
     }
 
-    console.log(`[哔哩速度] 成功优化 ${videoCount} 条视频流 + ${audioCount} 条音频流，主节点提升为: ${selectedMainHost || "优质官方CDN"}`);
+    const modeLabel = pluginMode === "overseas" ? "海外强制" : pluginMode === "mainland" ? "国内强制" : "智能自适应";
+    console.log(`[哔哩速度] 成功优化 ${videoCount} 条视频流 + ${audioCount} 条音频流 (${modeLabel})，主节点提升为: ${selectedMainHost || "优质官方CDN"}`);
 
     // 3. 重新序列化 Protobuf 并封装 gRPC 帧头 (保持与客户端期望的压缩状态一致)
     const newProto = isPlayView
