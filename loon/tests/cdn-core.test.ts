@@ -238,25 +238,30 @@ describe("CDN Core Algorithms Ported from 哔哩速度", () => {
       "https://118.228.23.25.mcdn.bilivideo.cn:4480/resource/sample.m4s" // PCDN
     ];
 
-    const optimized = optimizeStreamUrls(rawPrimary, rawBackup, [], "auto");
-    // Main node MUST be Hong Kong Equinix or overseas UPOS, NEVER mainland China edge
-    expect(optimized.baseUrl).toContain("cn-hk-eq-01-01.bilivideo.com");
-    // Backup nodes must prioritize overseas nodes first
-    expect(optimized.backupUrls[0]).toContain("cn-hk-eq-01-03.bilivideo.com");
-    expect(optimized.backupUrls[1]).toContain("upos-sz-mirroraliov.bilivideo.com");
-    // Singapore local Gotcha node must be preserved in overseas list
-    expect(optimized.backupUrls.some(u => u.includes("d1--ov-gotcha05"))).toBe(true);
+    // When probe ranking is passed, it ranks by probe speed
+    const probeRanked = optimizeStreamUrls(rawPrimary, rawBackup, ["cn-hk-eq-01-01.bilivideo.com"], "auto");
+    expect(probeRanked.baseUrl).toContain("cn-hk-eq-01-01.bilivideo.com");
+
+    // Without probe, genuine original overseas node is kept safely first
+    const defaultOpt = optimizeStreamUrls(rawPrimary, rawBackup, [], "auto");
+    expect(defaultOpt.baseUrl).toContain("upos-sz-mirroraliov.bilivideo.com");
+    // Singapore local Gotcha node must be preserved in backup list
+    expect(defaultOpt.backupUrls.some(u => u.includes("d1--ov-gotcha05"))).toBe(true);
     // PCDN must be stripped
-    expect(optimized.backupUrls.some(u => u.includes("mcdn"))).toBe(false);
+    expect(defaultOpt.backupUrls.some(u => u.includes("mcdn"))).toBe(false);
   });
 
   it("should respect forced mode ('overseas' vs 'mainland')", async () => {
     const { optimizeStreamUrls } = await import("../src/cdn-core");
     const rawPrimary = "https://upos-sz-mirrorali.bilivideo.com/upgcxcode/sample.m4s";
 
-    // Even if incoming URL looks like mainland, forced 'overseas' mode puts HK / overseas nodes first
+    // Forced 'overseas' mode puts original author's overseas nodes (cosov) first
     const overseasOpt = optimizeStreamUrls(rawPrimary, [], [], "overseas");
-    expect(overseasOpt.baseUrl).toContain("cn-hk-eq-01-01.bilivideo.com");
+    expect(overseasOpt.baseUrl).toContain("upos-sz-mirrorcosov.bilivideo.com");
+
+    // If probe prefers HK Equinix, probe ranking takes precedence
+    const overseasWithProbe = optimizeStreamUrls(rawPrimary, [], ["cn-hk-eq-01-01.bilivideo.com"], "overseas");
+    expect(overseasWithProbe.baseUrl).toContain("cn-hk-eq-01-01.bilivideo.com");
 
     // Forced 'mainland' mode puts mainland nodes first
     const mainlandOpt = optimizeStreamUrls(rawPrimary, [], [], "mainland");

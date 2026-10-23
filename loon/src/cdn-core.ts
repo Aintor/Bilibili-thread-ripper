@@ -5,37 +5,34 @@
 export const MAINLAND_HOSTS: readonly string[] = Object.freeze([
   "upos-sz-mirrorali.bilivideo.com",
   "upos-sz-mirrorhw.bilivideo.com",
-  "upos-sz-mirrorcos.bilivideo.com",
-  "upos-sz-mirror08c.bilivideo.com",
   "upos-sz-mirrorbos.bilivideo.com",
+  "upos-sz-mirror08c.bilivideo.com",
   "upos-sz-mirrorbd.bilivideo.com",
   "upos-sz-mirror14b.bilivideo.com",
   "upos-sz-estgoss.bilivideo.com",
+  "upos-sz-mirrorcos.bilivideo.com",
   "upos-sz-mirrorcoso1.bilivideo.com"
 ]);
 
 export const OVERSEAS_HOSTS: readonly string[] = Object.freeze([
-  "cn-hk-eq-01-01.bilivideo.com",
-  "cn-hk-eq-01-03.bilivideo.com",
+  "upos-sz-mirrorcosov.bilivideo.com",
   "upos-sz-mirroraliov.bilivideo.com",
-  "upos-sz-mirrorcosov.bilivideo.com"
+  "cn-hk-eq-01-01.bilivideo.com",
+  "cn-hk-eq-01-03.bilivideo.com"
 ]);
 
-export const DEFAULT_PRIORITY_HOSTS: readonly string[] = Object.freeze([
-  "upos-sz-mirrorali.bilivideo.com",
-  "upos-sz-mirrorhw.bilivideo.com",
-  "upos-sz-mirrorcos.bilivideo.com",
-  "upos-sz-mirror08c.bilivideo.com",
-  "cn-hk-eq-01-01.bilivideo.com",
-  "upos-sz-mirrorcosov.bilivideo.com"
+export const GLOBAL_HOSTS: readonly string[] = Object.freeze([
+  ...OVERSEAS_HOSTS,
+  ...MAINLAND_HOSTS
 ]);
 
-export const OVERSEAS_PRIORITY_HOSTS: readonly string[] = Object.freeze([
-  "cn-hk-eq-01-01.bilivideo.com",
-  "cn-hk-eq-01-03.bilivideo.com",
-  "upos-sz-mirroraliov.bilivideo.com",
-  "upos-sz-mirrorcosov.bilivideo.com"
-]);
+export function hostOf(value: string): string {
+  try {
+    return new URL(value).hostname.toLowerCase();
+  } catch {
+    return "";
+  }
+}
 
 /**
  * 判断是否为海外流媒体特征 (由 B 站官方调度器分发的海外节点特征)
@@ -139,11 +136,12 @@ export interface OptimizedStream {
 }
 
 /**
- * 核心优化调度器：
- * 1. 剔除 PCDN / MCDN 垃圾节点
- * 2. 识别合规 Donor (供体)
- * 3. 跨节点合成高速官方 CDN 备选大军
- * 4. 结合实测测速打分排序，确定最优主节点与原生备用池
+ * 核心优化调度器 (对齐原作者算法三档设计：不限 / 大陆 / 海外 + 纯测速排序)：
+ * 1. 深度清洗 PCDN / MCDN
+ * 2. 识别合规 UPOS/官方 Donor (供体)
+ * 3. 针对「不限 / 大陆 / 海外」划分目标节点池
+ * 4. 严格按照原版顺序组合 [...allowedOriginals, ...synthetic, ...relays]
+ * 5. 结合实测探针延迟对节点进行精准打分重排
  */
 export function optimizeStreamUrls(
   primary: string,
@@ -157,12 +155,7 @@ export function optimizeStreamUrls(
   const cleanOriginals = allOriginals.filter((url) => !isRelayUrl(url));
   const fallbackList = cleanOriginals.length > 0 ? cleanOriginals : allOriginals;
 
-  // 2. 检测海外流媒体上下文 (自动根据 B 站下发的节点特征判定，或由参数强制指定)
-  const isOverseas =
-    forcedMode === "overseas" ||
-    (forcedMode !== "mainland" && isOverseasContext(fallbackList));
-
-  // 3. 检查是否有合法的 UPOS 供体
+  // 2. 检查是否有合法的 UPOS 供体
   const uposDonor = fallbackList.find(isUposUrl);
 
   // 如果原本全是 Gotcha 海外专用流且没有任何 UPOS 节点，切勿强行切为大陆 UPOS（会触发 403 惩罚导致起播严重卡顿）
@@ -174,57 +167,87 @@ export function optimizeStreamUrls(
     };
   }
 
-  // 4. 寻找 Donor 签名供体 (优先非 Akamai 的 UPOS 节点)
+  // 3. 寻找 Donor 签名供体 (优先非 Akamai 的 UPOS 节点)
   const donor = uposDonor || fallbackList.find((url) => !isAkamaiUrl(url)) || fallbackList[0];
   if (!donor) {
     return { baseUrl: primary, backupUrls: backup };
   }
 
-  // 5. 确定候选 Host 清单与优先级 (根据环境自适应海外 vs 国内)
-  let priorityList: readonly string[];
-  if (preferredOrder && preferredOrder.length > 0) {
-    priorityList = preferredOrder;
-  } else if (isOverseas) {
-    priorityList = OVERSEAS_PRIORITY_HOSTS;
+  // 4. 三档模式划分与目标节点池 (严格对齐原版)
+  let targetPool: readonly string[];
+  let allowedOriginals: string[];
+
+  if (forcedMode === "mainland") {
+    // 大陆模式：仅使用大陆 9 大 CDN 节点，仅保留大陆原始节点
+    targetPool = MAINLAND_HOSTS;
+    allowedOriginals = cleanOriginals.filter((url) => MAINLAND_HOSTS.includes(hostOf(url)));
+  } else if (forcedMode === "overseas") {
+    // 海外模式：仅使用海外 4 大专线节点，排除大陆节点
+    targetPool = OVERSEAS_HOSTS;
+    allowedOriginals = cleanOriginals.filter((url) => !MAINLAND_HOSTS.includes(hostOf(url)));
   } else {
-    priorityList = DEFAULT_PRIORITY_HOSTS;
+    // 不限模式 (auto)：候选池为全域 (海外 + 大陆)，纯凭测速打分排序
+    // 若尚未测速，根据当前流是否包含海外特征决定海外节点还是大陆节点优先
+    const isOverseas = isOverseasContext(fallbackList);
+    targetPool = isOverseas
+      ? GLOBAL_HOSTS
+      : [...MAINLAND_HOSTS, ...OVERSEAS_HOSTS];
+    allowedOriginals = cleanOriginals;
   }
 
-  const targetHosts = isOverseas
-    ? Array.from(new Set([...priorityList, ...OVERSEAS_HOSTS, ...MAINLAND_HOSTS]))
-    : Array.from(new Set([...priorityList, ...MAINLAND_HOSTS, ...OVERSEAS_HOSTS]));
+  // 5. 若有测速探针数据，在对应模式池内按测速排序
+  let sortedTargetHosts: string[];
+  if (preferredOrder && preferredOrder.length > 0) {
+    const pref = preferredOrder.map((h) => h.toLowerCase().trim());
+    sortedTargetHosts = Array.from(targetPool).sort((a, b) => {
+      const idxA = pref.indexOf(a.toLowerCase());
+      const idxB = pref.indexOf(b.toLowerCase());
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+      if (idxA !== -1) return -1;
+      if (idxB !== -1) return 1;
+      return 0;
+    });
+  } else {
+    sortedTargetHosts = Array.from(targetPool);
+  }
 
   // 6. 合成备选节点 URL
   const syntheticList: string[] = [];
-  for (const host of targetHosts) {
+  for (const host of sortedTargetHosts) {
     const syn = swapOrdinaryHost(donor, host, isAkamaiUrl(donor));
     if (syn && !syntheticList.includes(syn)) {
       syntheticList.push(syn);
     }
   }
 
-  // 7. 组合最终节点池 (先排实测优选的合成节点，再附带官方原始有效节点)
-  // 海外模式下：将官方下发的高速海外节点 (如 Singapore 本地 Gotcha) 置于国内合成节点之前
-  let combined: string[];
-  if (isOverseas) {
-    const validOverseasOriginals = fallbackList.filter((u) => isOverseasContext([u]));
-    // 结构：海外合成节点 (如香港 Equinix) -> 官方海外本地节点 -> 大陆合成节点 -> 其他兜底
-    combined = Array.from(new Set([
-      ...syntheticList.filter((u) => isOverseasContext([u])),
-      ...validOverseasOriginals,
-      ...syntheticList,
-      ...fallbackList
-    ]));
+  // 7. 组合最终节点池：[...allowedOriginals, ...synthetic, ...relays]
+  const relays = cleanOriginals.length > 0 ? [] : allOriginals;
+  const combined = Array.from(new Set([...allowedOriginals, ...syntheticList, ...relays]));
+
+  // 8. 测速优先重排：若已有测速榜单，将实测最快的节点推向最前 (保持同节点下 allowedOriginals 优先)
+  let rankedUrls: string[];
+  if (preferredOrder && preferredOrder.length > 0) {
+    const pref = preferredOrder.map((h) => h.toLowerCase().trim());
+    rankedUrls = combined.slice().sort((urlA, urlB) => {
+      const hostA = hostOf(urlA);
+      const hostB = hostOf(urlB);
+      const rankA = pref.indexOf(hostA);
+      const rankB = pref.indexOf(hostB);
+      if (rankA !== -1 && rankB !== -1) return rankA - rankB;
+      if (rankA !== -1) return -1;
+      if (rankB !== -1) return 1;
+      return 0;
+    });
   } else {
-    combined = Array.from(new Set([...syntheticList, ...fallbackList]));
+    rankedUrls = combined;
   }
 
-  if (combined.length === 0) {
+  if (rankedUrls.length === 0) {
     return { baseUrl: primary, backupUrls: backup };
   }
 
-  const bestUrl = combined[0];
-  const backupUrls = combined.slice(1);
-
-  return { baseUrl: bestUrl, backupUrls };
+  return {
+    baseUrl: rankedUrls[0],
+    backupUrls: rankedUrls.slice(1),
+  };
 }

@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Bilibili Speed mobile CDN optimization plugin for Loon",
   "scripts": {
-    "build": "bun build src/bilibili-speed.ts --outfile dist/bilibili-speed.js && bun build src/bilibili-speed-probe.ts --outfile dist/bilibili-speed-probe.js",
+    "build": "bun build src/bilibili-speed.ts --outfile dist/bilibili-speed.js && bun build src/bilibili-speed-probe.ts --outfile dist/bilibili-speed-probe.js && bun build src/bilibili-speed-watchdog.ts --outfile dist/bilibili-speed-watchdog.js",
     "test": "bun test"
   },
   "dependencies": {

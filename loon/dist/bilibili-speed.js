@@ -2266,34 +2266,31 @@ var PlayViewReply = new PlayViewReply$Type;
 var MAINLAND_HOSTS = Object.freeze([
   "upos-sz-mirrorali.bilivideo.com",
   "upos-sz-mirrorhw.bilivideo.com",
-  "upos-sz-mirrorcos.bilivideo.com",
-  "upos-sz-mirror08c.bilivideo.com",
   "upos-sz-mirrorbos.bilivideo.com",
+  "upos-sz-mirror08c.bilivideo.com",
   "upos-sz-mirrorbd.bilivideo.com",
   "upos-sz-mirror14b.bilivideo.com",
   "upos-sz-estgoss.bilivideo.com",
+  "upos-sz-mirrorcos.bilivideo.com",
   "upos-sz-mirrorcoso1.bilivideo.com"
 ]);
 var OVERSEAS_HOSTS = Object.freeze([
-  "cn-hk-eq-01-01.bilivideo.com",
-  "cn-hk-eq-01-03.bilivideo.com",
+  "upos-sz-mirrorcosov.bilivideo.com",
   "upos-sz-mirroraliov.bilivideo.com",
-  "upos-sz-mirrorcosov.bilivideo.com"
-]);
-var DEFAULT_PRIORITY_HOSTS = Object.freeze([
-  "upos-sz-mirrorali.bilivideo.com",
-  "upos-sz-mirrorhw.bilivideo.com",
-  "upos-sz-mirrorcos.bilivideo.com",
-  "upos-sz-mirror08c.bilivideo.com",
   "cn-hk-eq-01-01.bilivideo.com",
-  "upos-sz-mirrorcosov.bilivideo.com"
+  "cn-hk-eq-01-03.bilivideo.com"
 ]);
-var OVERSEAS_PRIORITY_HOSTS = Object.freeze([
-  "cn-hk-eq-01-01.bilivideo.com",
-  "cn-hk-eq-01-03.bilivideo.com",
-  "upos-sz-mirroraliov.bilivideo.com",
-  "upos-sz-mirrorcosov.bilivideo.com"
+var GLOBAL_HOSTS = Object.freeze([
+  ...OVERSEAS_HOSTS,
+  ...MAINLAND_HOSTS
 ]);
+function hostOf(value) {
+  try {
+    return new URL(value).hostname.toLowerCase();
+  } catch {
+    return "";
+  }
+}
 function isOverseasContext(urls) {
   return urls.some((raw) => {
     try {
@@ -2354,7 +2351,6 @@ function optimizeStreamUrls(primary, backup = [], preferredOrder = [], forcedMod
   const allOriginals = [primary, ...backup].filter(Boolean);
   const cleanOriginals = allOriginals.filter((url) => !isRelayUrl(url));
   const fallbackList = cleanOriginals.length > 0 ? cleanOriginals : allOriginals;
-  const isOverseas = forcedMode === "overseas" || forcedMode !== "mainland" && isOverseasContext(fallbackList);
   const uposDonor = fallbackList.find(isUposUrl);
   if (!uposDonor && fallbackList.some(isGotchaUrl)) {
     return {
@@ -2366,40 +2362,71 @@ function optimizeStreamUrls(primary, backup = [], preferredOrder = [], forcedMod
   if (!donor) {
     return { baseUrl: primary, backupUrls: backup };
   }
-  let priorityList;
-  if (preferredOrder && preferredOrder.length > 0) {
-    priorityList = preferredOrder;
-  } else if (isOverseas) {
-    priorityList = OVERSEAS_PRIORITY_HOSTS;
+  let targetPool;
+  let allowedOriginals;
+  if (forcedMode === "mainland") {
+    targetPool = MAINLAND_HOSTS;
+    allowedOriginals = cleanOriginals.filter((url) => MAINLAND_HOSTS.includes(hostOf(url)));
+  } else if (forcedMode === "overseas") {
+    targetPool = OVERSEAS_HOSTS;
+    allowedOriginals = cleanOriginals.filter((url) => !MAINLAND_HOSTS.includes(hostOf(url)));
   } else {
-    priorityList = DEFAULT_PRIORITY_HOSTS;
+    const isOverseas = isOverseasContext(fallbackList);
+    targetPool = isOverseas ? GLOBAL_HOSTS : [...MAINLAND_HOSTS, ...OVERSEAS_HOSTS];
+    allowedOriginals = cleanOriginals;
   }
-  const targetHosts = isOverseas ? Array.from(new Set([...priorityList, ...OVERSEAS_HOSTS, ...MAINLAND_HOSTS])) : Array.from(new Set([...priorityList, ...MAINLAND_HOSTS, ...OVERSEAS_HOSTS]));
+  let sortedTargetHosts;
+  if (preferredOrder && preferredOrder.length > 0) {
+    const pref = preferredOrder.map((h) => h.toLowerCase().trim());
+    sortedTargetHosts = Array.from(targetPool).sort((a, b) => {
+      const idxA = pref.indexOf(a.toLowerCase());
+      const idxB = pref.indexOf(b.toLowerCase());
+      if (idxA !== -1 && idxB !== -1)
+        return idxA - idxB;
+      if (idxA !== -1)
+        return -1;
+      if (idxB !== -1)
+        return 1;
+      return 0;
+    });
+  } else {
+    sortedTargetHosts = Array.from(targetPool);
+  }
   const syntheticList = [];
-  for (const host of targetHosts) {
+  for (const host of sortedTargetHosts) {
     const syn = swapOrdinaryHost(donor, host, isAkamaiUrl(donor));
     if (syn && !syntheticList.includes(syn)) {
       syntheticList.push(syn);
     }
   }
-  let combined;
-  if (isOverseas) {
-    const validOverseasOriginals = fallbackList.filter((u) => isOverseasContext([u]));
-    combined = Array.from(new Set([
-      ...syntheticList.filter((u) => isOverseasContext([u])),
-      ...validOverseasOriginals,
-      ...syntheticList,
-      ...fallbackList
-    ]));
+  const relays = cleanOriginals.length > 0 ? [] : allOriginals;
+  const combined = Array.from(new Set([...allowedOriginals, ...syntheticList, ...relays]));
+  let rankedUrls;
+  if (preferredOrder && preferredOrder.length > 0) {
+    const pref = preferredOrder.map((h) => h.toLowerCase().trim());
+    rankedUrls = combined.slice().sort((urlA, urlB) => {
+      const hostA = hostOf(urlA);
+      const hostB = hostOf(urlB);
+      const rankA = pref.indexOf(hostA);
+      const rankB = pref.indexOf(hostB);
+      if (rankA !== -1 && rankB !== -1)
+        return rankA - rankB;
+      if (rankA !== -1)
+        return -1;
+      if (rankB !== -1)
+        return 1;
+      return 0;
+    });
   } else {
-    combined = Array.from(new Set([...syntheticList, ...fallbackList]));
+    rankedUrls = combined;
   }
-  if (combined.length === 0) {
+  if (rankedUrls.length === 0) {
     return { baseUrl: primary, backupUrls: backup };
   }
-  const bestUrl = combined[0];
-  const backupUrls = combined.slice(1);
-  return { baseUrl: bestUrl, backupUrls };
+  return {
+    baseUrl: rankedUrls[0],
+    backupUrls: rankedUrls.slice(1)
+  };
 }
 
 // node_modules/pako/dist/pako.mjs
@@ -6039,11 +6066,36 @@ function getPluginMode() {
     if (typeof $argument === "string" && $argument.trim()) {
       const match = $argument.match(/mode=([a-z]+)/i);
       const mode = (match ? match[1] : $argument).trim().toLowerCase();
-      if (mode === "overseas" || mode === "mainland")
+      if (mode === "overseas" || mode === "mainland" || mode === "auto")
         return mode;
     }
   } catch (_e) {}
   return "auto";
+}
+function commitSessions(updates) {
+  try {
+    if (typeof $persistentStore === "undefined" || Object.keys(updates).length === 0)
+      return;
+    const raw = $persistentStore.read("bilibili_speed_sessions");
+    let sessions = {};
+    if (raw) {
+      try {
+        sessions = JSON.parse(raw);
+      } catch {}
+    }
+    const now = Date.now();
+    for (const [path, hosts] of Object.entries(updates)) {
+      sessions[path] = { hosts, updatedAt: now };
+    }
+    const keys = Object.keys(sessions);
+    if (keys.length > 16) {
+      keys.sort((a, b) => (sessions[a]?.updatedAt || 0) - (sessions[b]?.updatedAt || 0));
+      for (let i = 0;i < keys.length - 16; i++) {
+        delete sessions[keys[i]];
+      }
+    }
+    $persistentStore.write(JSON.stringify(sessions), "bilibili_speed_sessions");
+  } catch {}
 }
 function getPreferredHosts() {
   try {
@@ -6072,6 +6124,20 @@ async function handleResponse() {
     let videoCount = 0;
     let audioCount = 0;
     let selectedMainHost = "";
+    const sessionUpdates = {};
+    const trackSession = (baseUrl, backupUrls) => {
+      try {
+        if (!baseUrl)
+          return;
+        const path = new URL(baseUrl).pathname;
+        if (!path || !path.includes("/upgcxcode/") && !path.includes("/gotcha/"))
+          return;
+        const hosts = [hostOf(baseUrl), ...backupUrls.map(hostOf)].filter((h, i, a) => h && a.indexOf(h) === i);
+        if (hosts.length > 0) {
+          sessionUpdates[path] = hosts;
+        }
+      } catch {}
+    };
     if (reply?.vodInfo?.streamList && Array.isArray(reply.vodInfo.streamList)) {
       for (const stream of reply.vodInfo.streamList) {
         if (stream.content?.oneofKind === "dashVideo" && stream.content.dashVideo) {
@@ -6079,6 +6145,7 @@ async function handleResponse() {
           const optimized = optimizeStreamUrls(dash.baseUrl, dash.backupUrl || [], preferredHosts, pluginMode);
           dash.baseUrl = optimized.baseUrl;
           dash.backupUrl = optimized.backupUrls;
+          trackSession(optimized.baseUrl, optimized.backupUrls);
           if (!selectedMainHost && optimized.baseUrl) {
             try {
               selectedMainHost = new URL(optimized.baseUrl).hostname;
@@ -6092,6 +6159,7 @@ async function handleResponse() {
               const optimized = optimizeStreamUrls(seg.url, seg.backupUrl || [], preferredHosts, pluginMode);
               seg.url = optimized.baseUrl;
               seg.backupUrl = optimized.backupUrls;
+              trackSession(optimized.baseUrl, optimized.backupUrls);
               if (!selectedMainHost && optimized.baseUrl) {
                 try {
                   selectedMainHost = new URL(optimized.baseUrl).hostname;
@@ -6109,6 +6177,7 @@ async function handleResponse() {
           const optimized = optimizeStreamUrls(audio.baseUrl, audio.backupUrl || [], preferredHosts, pluginMode);
           audio.baseUrl = optimized.baseUrl;
           audio.backupUrl = optimized.backupUrls;
+          trackSession(optimized.baseUrl, optimized.backupUrls);
           audioCount++;
         }
       }
@@ -6119,6 +6188,7 @@ async function handleResponse() {
           const optimized = optimizeStreamUrls(audio.baseUrl, audio.backupUrl || [], preferredHosts, pluginMode);
           audio.baseUrl = optimized.baseUrl;
           audio.backupUrl = optimized.backupUrls;
+          trackSession(optimized.baseUrl, optimized.backupUrls);
           audioCount++;
         }
       }
@@ -6128,6 +6198,7 @@ async function handleResponse() {
       const optimized = optimizeStreamUrls(audio.baseUrl, audio.backupUrl || [], preferredHosts, pluginMode);
       audio.baseUrl = optimized.baseUrl;
       audio.backupUrl = optimized.backupUrls;
+      trackSession(optimized.baseUrl, optimized.backupUrls);
       audioCount++;
     }
     const totalModified = videoCount + audioCount;
@@ -6136,6 +6207,7 @@ async function handleResponse() {
       $done({});
       return;
     }
+    commitSessions(sessionUpdates);
     const modeLabel = pluginMode === "overseas" ? "海外强制" : pluginMode === "mainland" ? "国内强制" : "智能自适应";
     console.log(`[哔哩速度] 成功优化 ${videoCount} 条视频流 + ${audioCount} 条音频流 (${modeLabel})，主节点提升为: ${selectedMainHost || "优质官方CDN"}`);
     const newProto = isPlayView ? PlayViewReply.toBinary(reply) : PlayViewUniteReply.toBinary(reply);
