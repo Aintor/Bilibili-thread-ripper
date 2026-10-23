@@ -99,32 +99,6 @@ function getPluginMode(): "auto" | "overseas" | "mainland" {
   return "auto";
 }
 
-function commitSessions(updates: Record<string, string[]>) {
-  try {
-    if (typeof $persistentStore === "undefined" || Object.keys(updates).length === 0) return;
-    const raw = $persistentStore.read("bilibili_speed_sessions");
-    let sessions: Record<string, { hosts: string[]; updatedAt: number }> = {};
-    if (raw) {
-      try { sessions = JSON.parse(raw); } catch {}
-    }
-
-    const now = Date.now();
-    for (const [path, hosts] of Object.entries(updates)) {
-      sessions[path] = { hosts, updatedAt: now };
-    }
-
-    const keys = Object.keys(sessions);
-    if (keys.length > 16) {
-      keys.sort((a, b) => (sessions[a]?.updatedAt || 0) - (sessions[b]?.updatedAt || 0));
-      for (let i = 0; i < keys.length - 16; i++) {
-        delete sessions[keys[i]];
-      }
-    }
-
-    $persistentStore.write(JSON.stringify(sessions), "bilibili_speed_sessions");
-  } catch {}
-}
-
 function getPreferredHosts(): string[] {
   try {
     const raw = typeof $persistentStore !== "undefined" ? $persistentStore.read("bilibili_speed_cdn_ranking") : null;
@@ -158,19 +132,6 @@ async function handleResponse() {
     let videoCount = 0;
     let audioCount = 0;
     let selectedMainHost = "";
-    const sessionUpdates: Record<string, string[]> = {};
-
-    const trackSession = (baseUrl: string, backupUrls: string[]) => {
-      try {
-        if (!baseUrl) return;
-        const path = new URL(baseUrl).pathname;
-        if (!path || (!path.includes("/upgcxcode/") && !path.includes("/gotcha/"))) return;
-        const hosts = [hostOf(baseUrl), ...backupUrls.map(hostOf)].filter((h, i, a) => h && a.indexOf(h) === i);
-        if (hosts.length > 0) {
-          sessionUpdates[path] = hosts;
-        }
-      } catch {}
-    };
 
     // 2. 遍历流媒体列表，应用【哔哩速度】核心调度算法
     // A. 视频轨优化 (streamList: DashVideo / SegmentVideo)
@@ -181,7 +142,6 @@ async function handleResponse() {
           const optimized = optimizeStreamUrls(dash.baseUrl, dash.backupUrl || [], preferredHosts, pluginMode);
           dash.baseUrl = optimized.baseUrl;
           dash.backupUrl = optimized.backupUrls;
-          trackSession(optimized.baseUrl, optimized.backupUrls);
           if (!selectedMainHost && optimized.baseUrl) {
             try { selectedMainHost = new URL(optimized.baseUrl).hostname; } catch {}
           }
@@ -193,7 +153,6 @@ async function handleResponse() {
               const optimized = optimizeStreamUrls(seg.url, seg.backupUrl || [], preferredHosts, pluginMode);
               seg.url = optimized.baseUrl;
               seg.backupUrl = optimized.backupUrls;
-              trackSession(optimized.baseUrl, optimized.backupUrls);
               if (!selectedMainHost && optimized.baseUrl) {
                 try { selectedMainHost = new URL(optimized.baseUrl).hostname; } catch {}
               }
@@ -211,7 +170,6 @@ async function handleResponse() {
           const optimized = optimizeStreamUrls(audio.baseUrl, audio.backupUrl || [], preferredHosts, pluginMode);
           audio.baseUrl = optimized.baseUrl;
           audio.backupUrl = optimized.backupUrls;
-          trackSession(optimized.baseUrl, optimized.backupUrls);
           audioCount++;
         }
       }
@@ -224,7 +182,6 @@ async function handleResponse() {
           const optimized = optimizeStreamUrls(audio.baseUrl, audio.backupUrl || [], preferredHosts, pluginMode);
           audio.baseUrl = optimized.baseUrl;
           audio.backupUrl = optimized.backupUrls;
-          trackSession(optimized.baseUrl, optimized.backupUrls);
           audioCount++;
         }
       }
@@ -236,7 +193,6 @@ async function handleResponse() {
       const optimized = optimizeStreamUrls(audio.baseUrl, audio.backupUrl || [], preferredHosts, pluginMode);
       audio.baseUrl = optimized.baseUrl;
       audio.backupUrl = optimized.backupUrls;
-      trackSession(optimized.baseUrl, optimized.backupUrls);
       audioCount++;
     }
 
@@ -246,8 +202,6 @@ async function handleResponse() {
       $done({});
       return;
     }
-
-    commitSessions(sessionUpdates);
 
     const modeLabel = pluginMode === "overseas" ? "海外强制" : pluginMode === "mainland" ? "国内强制" : "智能自适应";
     console.log(`[哔哩速度] 成功优化 ${videoCount} 条视频流 + ${audioCount} 条音频流 (${modeLabel})，主节点提升为: ${selectedMainHost || "优质官方CDN"}`);
